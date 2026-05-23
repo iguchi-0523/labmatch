@@ -523,6 +523,7 @@ export default async function LabsPage({ searchParams }: PageProps) {
                   ? (FIELD_LABEL_BY_CODE[lab.primaryFieldCode] ??
                     lab.primaryFieldName)
                   : null;
+                const displayName = lab.professorNameJa ?? lab.professorName;
                 return (
                   <li key={lab.id}>
                     <Link
@@ -532,17 +533,18 @@ export default async function LabsPage({ searchParams }: PageProps) {
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <div className="font-semibold text-base text-gray-900 leading-snug">
-                            {lab.name}
+                            {displayName} 研究室
                           </div>
+                          {lab.professorNameJa && (
+                            <div className="text-xs text-gray-500 mt-0.5">
+                              ({lab.professorName})
+                            </div>
+                          )}
                           <div className="text-sm text-gray-700 mt-1">
-                            <span className="font-medium">
-                              {lab.professorName}
-                            </span>
-                            <span className="text-gray-400 mx-1.5">/</span>
-                            <span>{lab.university.name}</span>
+                            {lab.university.name}
                             {lab.department && (
                               <span className="text-gray-500">
-                                （{lab.department}）
+                                ・{lab.department}
                               </span>
                             )}
                           </div>

@@ -18,13 +18,15 @@ export async function generateMetadata({ params }: PageProps) {
     select: {
       name: true,
       professorName: true,
+      professorNameJa: true,
       university: { select: { name: true } },
     },
   });
   if (!lab) return { title: "見つかりません" };
+  const displayName = lab.professorNameJa ?? lab.professorName;
   return {
-    title: lab.name,
-    description: `${lab.professorName}（${lab.university.name}）の研究室紹介ページ。直近 5 年の研究成果と AI 要約。`,
+    title: `${displayName} 研究室`,
+    description: `${displayName}（${lab.university.name}）の研究室紹介ページ。直近 5 年の研究成果と AI 要約。`,
   };
 }
 
@@ -63,9 +65,27 @@ export default async function LabDetailPage({ params }: PageProps) {
       lab.aiSummary = summary;
     } catch (e) {
       console.error("AI summary generation failed:", e);
-      // 失敗してもページはレンダリングを続ける（プレースホルダ表示）
     }
   }
+
+  // 外部リンク用の URL を組み立て（ID が無ければ検索リンクにフォールバック）
+  const nameForSearch = lab.professorNameJa ?? lab.professorName;
+  const displayName = lab.professorNameJa ?? lab.professorName;
+
+  const researchmapHref = lab.researchmapId
+    ? `https://researchmap.jp/${lab.researchmapId}`
+    : `https://researchmap.jp/researchers?name=${encodeURIComponent(nameForSearch)}`;
+  const researchmapDirect = !!lab.researchmapId;
+
+  const kakenHref = lab.researcherNumber
+    ? `https://kaken.nii.ac.jp/ja/search/?kw=${encodeURIComponent(lab.researcherNumber)}`
+    : `https://kaken.nii.ac.jp/ja/search/?kw=${encodeURIComponent(nameForSearch)}`;
+  const kakenDirect = !!lab.researcherNumber;
+
+  const officialSearchHref = `https://www.google.com/search?q=${encodeURIComponent(
+    [nameForSearch, lab.university.name, "研究室"].join(" "),
+  )}`;
+  const officialDirect = !!lab.officialUrl;
 
   return (
     <main className="min-h-screen p-8 max-w-4xl mx-auto">
@@ -80,8 +100,15 @@ export default async function LabDetailPage({ params }: PageProps) {
       </nav>
 
       <header className="mb-8 pb-4 border-b">
-        <h1 className="text-3xl font-bold mb-2">{lab.name}</h1>
-        <div className="text-gray-700">主宰者：{lab.professorName}</div>
+        <h1 className="text-3xl font-bold mb-2">{displayName} 研究室</h1>
+        <div className="text-gray-700">
+          主宰者：{displayName}
+          {lab.professorNameJa && (
+            <span className="text-gray-500 ml-2 text-sm">
+              ({lab.professorName})
+            </span>
+          )}
+        </div>
         <div className="text-gray-600 text-sm mt-1">
           {lab.university.name}
           {lab.department ? `・${lab.department}` : ""}
@@ -126,7 +153,7 @@ export default async function LabDetailPage({ params }: PageProps) {
                       {w.titleJa ?? w.title}
                     </a>
                   ) : (
-                    w.titleJa ?? w.title
+                    (w.titleJa ?? w.title)
                   )}
                 </div>
                 {w.titleJa && (
@@ -172,7 +199,7 @@ export default async function LabDetailPage({ params }: PageProps) {
         </h2>
         {lab.labSocieties.length === 0 ? (
           <p className="text-gray-500 text-sm">
-            まだデータがありません（researchmap 連携後に表示）。
+            まだデータがありません（学会データ連携後に表示）。
           </p>
         ) : (
           <ul className="space-y-1 text-sm">
@@ -188,19 +215,72 @@ export default async function LabDetailPage({ params }: PageProps) {
 
       <section>
         <h2 className="text-xl font-semibold mb-3">外部リンク</h2>
-        <ul className="space-y-1 text-sm">
-          {lab.officialUrl && (
-            <li>
+        <ul className="space-y-1.5 text-sm">
+          {/* 公式サイト */}
+          <li className="flex items-baseline gap-2">
+            {officialDirect ? (
               <a
-                href={lab.officialUrl}
+                href={lab.officialUrl!}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-blue-600 hover:underline"
               >
                 公式サイト
               </a>
-            </li>
-          )}
+            ) : (
+              <>
+                <a
+                  href={officialSearchHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:underline"
+                >
+                  公式サイトを検索
+                </a>
+                <span className="text-xs text-gray-500">
+                  （Google で「氏名 + 大学 + 研究室」を検索）
+                </span>
+              </>
+            )}
+          </li>
+
+          {/* researchmap */}
+          <li className="flex items-baseline gap-2">
+            <a
+              href={researchmapHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:underline"
+            >
+              researchmap
+              {!researchmapDirect && "（検索）"}
+            </a>
+            {!researchmapDirect && (
+              <span className="text-xs text-gray-500">
+                ※プロフィール ID 未取得。氏名で検索結果を開きます
+              </span>
+            )}
+          </li>
+
+          {/* KAKEN */}
+          <li className="flex items-baseline gap-2">
+            <a
+              href={kakenHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:underline"
+            >
+              KAKEN（科研費）
+              {!kakenDirect && "（検索）"}
+            </a>
+            {!kakenDirect && (
+              <span className="text-xs text-gray-500">
+                ※研究者番号未取得。氏名で検索します
+              </span>
+            )}
+          </li>
+
+          {/* OpenAlex */}
           {lab.openalexAuthorId && (
             <li>
               <a
@@ -213,6 +293,8 @@ export default async function LabDetailPage({ params }: PageProps) {
               </a>
             </li>
           )}
+
+          {/* ORCID */}
           {lab.orcid && (
             <li>
               <a
@@ -222,30 +304,6 @@ export default async function LabDetailPage({ params }: PageProps) {
                 className="text-blue-600 hover:underline"
               >
                 ORCID
-              </a>
-            </li>
-          )}
-          {lab.researchmapId && (
-            <li>
-              <a
-                href={`https://researchmap.jp/${lab.researchmapId}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:underline"
-              >
-                researchmap
-              </a>
-            </li>
-          )}
-          {lab.researcherNumber && (
-            <li>
-              <a
-                href={`https://kaken.nii.ac.jp/ja/search/?kw=${lab.researcherNumber}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:underline"
-              >
-                KAKEN（科研費）
               </a>
             </li>
           )}
