@@ -29,6 +29,7 @@ model Lab {
   universityId         Int       @map("university_id")
   name                 String
   professorName        String    @map("professor_name")
+  professorNameJa      String?   @map("professor_name_ja")
   department           String?
   officialUrl          String?   @map("official_url")
   researcherNumber     String?   @unique @map("researcher_number") // e-Rad ID
