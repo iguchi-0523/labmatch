@@ -9,6 +9,25 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
+export async function generateMetadata({ params }: PageProps) {
+  const { id } = await params;
+  const labId = Number(id);
+  if (Number.isNaN(labId)) return { title: "見つかりません" };
+  const lab = await prisma.lab.findUnique({
+    where: { id: labId },
+    select: {
+      name: true,
+      professorName: true,
+      university: { select: { name: true } },
+    },
+  });
+  if (!lab) return { title: "見つかりません" };
+  return {
+    title: lab.name,
+    description: `${lab.professorName}（${lab.university.name}）の研究室紹介ページ。直近 5 年の研究成果と AI 要約。`,
+  };
+}
+
 export default async function LabDetailPage({ params }: PageProps) {
   const { id } = await params;
   const labId = Number(id);
@@ -73,13 +92,16 @@ export default async function LabDetailPage({ params }: PageProps) {
         <h2 className="text-xl font-semibold mb-3">
           AI 要約（直近 5 年の研究成果）
         </h2>
-        <div className="p-4 bg-yellow-50 border border-yellow-200 rounded text-sm text-gray-700">
+        <div className="p-4 bg-yellow-50 border border-yellow-200 rounded text-sm text-gray-700 whitespace-pre-wrap">
           {lab.aiSummary ?? (
             <span className="italic text-gray-500">
-              AI 要約はまだ生成されていません（ステップ5で実装）。
+              要約はまだ生成されていません。
             </span>
           )}
         </div>
+        <p className="text-xs text-gray-500 mt-2">
+          ※ AI（Claude）が論文情報をもとに自動生成。誤りを含む可能性があるため、正確性は研究室公式情報でご確認ください。
+        </p>
       </section>
 
       <section className="mb-8">

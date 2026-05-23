@@ -4,6 +4,10 @@ import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
+export const metadata = {
+  title: "研究室を検索",
+};
+
 const SORT_OPTIONS = [
   { value: "works", label: "論文数（多い順）" },
   { value: "name", label: "名前順" },
