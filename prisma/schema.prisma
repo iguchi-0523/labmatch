@@ -1,0 +1,139 @@
+// ラボマッチ Prisma schema
+// 詳細は docs/技術設計書.md を参照
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 大学
+model University {
+  id         Int      @id @default(autoincrement())
+  name       String   @unique
+  prefecture String?
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt      @map("updated_at")
+
+  labs Lab[]
+
+  @@map("universities")
+}
+
+// 研究室（= 主宰者の教授）
+model Lab {
+  id                   Int       @id @default(autoincrement())
+  universityId         Int       @map("university_id")
+  name                 String
+  professorName        String    @map("professor_name")
+  department           String?
+  officialUrl          String?   @map("official_url")
+  researcherNumber     String?   @unique @map("researcher_number") // e-Rad ID
+  researchmapId        String?   @unique @map("researchmap_id")
+  openalexAuthorId     String?   @unique @map("openalex_author_id")
+  orcid                String?   @unique
+  aiSummary            String?   @map("ai_summary")
+  aiSummaryGeneratedAt DateTime? @map("ai_summary_generated_at")
+  aiSummarySourceHash  String?   @map("ai_summary_source_hash")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt      @map("updated_at")
+
+  university   University   @relation(fields: [universityId], references: [id])
+  works        Work[]
+  grants       Grant[]
+  labFields    LabField[]
+  labSocieties LabSociety[]
+
+  @@index([universityId])
+  @@map("labs")
+}
+
+// 研究成果（論文・著書など）
+model Work {
+  id        Int      @id @default(autoincrement())
+  labId     Int      @map("lab_id")
+  title     String
+  abstract  String?
+  year      Int?
+  doi       String?
+  sourceUrl String?  @map("source_url")
+  type      String?  // "paper" | "book" | "other"
+  createdAt DateTime @default(now()) @map("created_at")
+
+  lab Lab @relation(fields: [labId], references: [id], onDelete: Cascade)
+
+  @@index([labId])
+  @@index([year])
+  @@map("works")
+}
+
+// 科研費課題
+model Grant {
+  id          Int       @id @default(autoincrement())
+  labId       Int       @map("lab_id")
+  title       String
+  periodStart DateTime? @map("period_start")
+  periodEnd   DateTime? @map("period_end")
+  amount      Int?      // 円
+  category    String?   // 審査区分
+  kakenUrl    String?   @map("kaken_url")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  lab Lab @relation(fields: [labId], references: [id], onDelete: Cascade)
+
+  @@index([labId])
+  @@map("grants")
+}
+
+// 分野（科研費「審査区分」に基づく階層マスタ）
+model Field {
+  id        Int      @id @default(autoincrement())
+  code      String   @unique
+  name      String
+  parentId  Int?     @map("parent_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  parent    Field?     @relation("FieldHierarchy", fields: [parentId], references: [id])
+  children  Field[]    @relation("FieldHierarchy")
+  labFields LabField[]
+
+  @@map("fields")
+}
+
+// Lab と Field の多対多
+model LabField {
+  labId   Int @map("lab_id")
+  fieldId Int @map("field_id")
+
+  lab   Lab   @relation(fields: [labId], references: [id], onDelete: Cascade)
+  field Field @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+
+  @@id([labId, fieldId])
+  @@map("lab_fields")
+}
+
+// 学会（researchmap 依存のため MVP では空のことが多い）
+model Society {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+
+  labSocieties LabSociety[]
+
+  @@map("societies")
+}
+
+// Lab と Society（役職付き）
+model LabSociety {
+  labId     Int     @map("lab_id")
+  societyId Int     @map("society_id")
+  role      String? // 役職（例: "理事", "副会長"）
+
+  lab     Lab     @relation(fields: [labId], references: [id], onDelete: Cascade)
+  society Society @relation(fields: [societyId], references: [id], onDelete: Cascade)
+
+  @@id([labId, societyId])
+  @@map("lab_societies")
+}
