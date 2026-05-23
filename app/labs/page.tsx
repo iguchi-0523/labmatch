@@ -31,6 +31,12 @@ const MIN_WORKS_OPTIONS = [
   { value: "20", label: "20 件以上" },
 ] as const;
 
+// 検索上位の日本語キーワード（ワンクリックで絞り込めるショートカット）
+const POPULAR_KEYWORDS = [
+  "細胞", "遺伝子", "がん", "マウス", "神経", "タンパク質",
+  "免疫", "脳", "腫瘍", "受容体", "ゲノム", "幹細胞",
+];
+
 interface PageProps {
   searchParams: Promise<{
     q?: string;
@@ -58,6 +64,18 @@ export default async function LabsPage({ searchParams }: PageProps) {
   const sort = params.sort ?? "works";
   const fieldCodes = asArray(params.f).filter((c) => /^\d+$/.test(c));
   const minWorks = Math.max(0, Number(params.min) || 0);
+
+  // 人気キーワードのチップ用 — 現在の絞り込み（q 以外）を保ったまま q を入れ替える
+  const chipHref = (kw: string) => {
+    const u = new URLSearchParams();
+    for (const id of universityIds) u.append("u", String(id));
+    if (prefecture) u.set("p", prefecture);
+    for (const code of fieldCodes) u.append("f", code);
+    if (minWorks > 0) u.set("min", String(minWorks));
+    if (sort !== "works") u.set("sort", sort);
+    u.set("q", kw);
+    return `/labs?${u.toString()}`;
+  };
 
   // WHERE 句を組み立て
   const conditions: Prisma.LabWhereInput[] = [];
@@ -112,6 +130,7 @@ export default async function LabsPage({ searchParams }: PageProps) {
           _count: { select: { works: true } },
         },
         orderBy,
+        take: 200, // 全件は取らない（パフォーマンス対策）。MVP規模では実質全件。
       }),
       prisma.university.findMany({ orderBy: { name: "asc" } }),
       prisma.university.findMany({
@@ -171,6 +190,21 @@ export default async function LabsPage({ searchParams }: PageProps) {
               <p className="text-xs text-gray-500 mt-1">
                 研究室名・主宰者・AI要約・論文タイトル（日本語/英語）を対象
               </p>
+              <div className="flex flex-wrap gap-1 mt-2">
+                {POPULAR_KEYWORDS.map((kw) => (
+                  <Link
+                    key={kw}
+                    href={chipHref(kw)}
+                    className={
+                      q === kw
+                        ? "text-xs px-2 py-0.5 bg-blue-600 text-white rounded"
+                        : "text-xs px-2 py-0.5 bg-white border rounded text-gray-700 hover:bg-gray-100 hover:border-gray-400"
+                    }
+                  >
+                    {kw}
+                  </Link>
+                ))}
+              </div>
             </div>
 
             <fieldset>
