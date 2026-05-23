@@ -10,12 +10,35 @@ const SORT_OPTIONS = [
   { value: "new", label: "新着順" },
 ] as const;
 
+// OpenAlex の field id (ASJC ベース) → 日本語ラベル
+const FIELD_OPTIONS = [
+  { code: "11", label: "農学・生物科学" },
+  { code: "13", label: "生化学・分子生物学・遺伝学" },
+  { code: "24", label: "免疫学・微生物学" },
+  { code: "28", label: "神経科学" },
+  { code: "30", label: "薬学・薬理学" },
+] as const;
+
+const FIELD_LABEL_BY_CODE: Record<string, string> = Object.fromEntries(
+  FIELD_OPTIONS.map((f) => [f.code, f.label]),
+);
+
+const MIN_WORKS_OPTIONS = [
+  { value: "0", label: "指定なし" },
+  { value: "5", label: "5 件以上" },
+  { value: "10", label: "10 件以上" },
+  { value: "15", label: "15 件以上" },
+  { value: "20", label: "20 件以上" },
+] as const;
+
 interface PageProps {
   searchParams: Promise<{
     q?: string;
     u?: string | string[];
     p?: string;
     sort?: string;
+    f?: string | string[];
+    min?: string;
   }>;
 }
 
@@ -33,6 +56,8 @@ export default async function LabsPage({ searchParams }: PageProps) {
     .filter((n) => Number.isInteger(n) && n > 0);
   const prefecture = params.p?.trim() ?? "";
   const sort = params.sort ?? "works";
+  const fieldCodes = asArray(params.f).filter((c) => /^\d+$/.test(c));
+  const minWorks = Math.max(0, Number(params.min) || 0);
 
   // WHERE 句を組み立て
   const conditions: Prisma.LabWhereInput[] = [];
@@ -41,7 +66,17 @@ export default async function LabsPage({ searchParams }: PageProps) {
       OR: [
         { name: { contains: q, mode: "insensitive" } },
         { professorName: { contains: q, mode: "insensitive" } },
-        { works: { some: { title: { contains: q, mode: "insensitive" } } } },
+        { aiSummary: { contains: q, mode: "insensitive" } },
+        {
+          works: {
+            some: {
+              OR: [
+                { title: { contains: q, mode: "insensitive" } },
+                { titleJa: { contains: q, mode: "insensitive" } },
+              ],
+            },
+          },
+        },
       ],
     });
   }
@@ -50,6 +85,9 @@ export default async function LabsPage({ searchParams }: PageProps) {
   }
   if (prefecture) {
     conditions.push({ university: { prefecture } });
+  }
+  if (fieldCodes.length > 0) {
+    conditions.push({ primaryFieldCode: { in: fieldCodes } });
   }
   const where: Prisma.LabWhereInput =
     conditions.length > 0 ? { AND: conditions } : {};
@@ -62,10 +100,10 @@ export default async function LabsPage({ searchParams }: PageProps) {
         ? { createdAt: "desc" }
         : { works: { _count: "desc" } };
 
-  // 結果＋ファセット用のマスタを並行取得
-  const [matchCount, totalCount, labs, universities, prefectureRows] =
+  // 全件フェッチ → 論文数で post-filter
+  // （Prisma で count フィルタは複雑なので、現状件数なら全件取って絞る方が単純）
+  const [totalCount, allMatches, universities, prefectureRows] =
     await Promise.all([
-      prisma.lab.count({ where }),
       prisma.lab.count(),
       prisma.lab.findMany({
         where,
@@ -74,7 +112,6 @@ export default async function LabsPage({ searchParams }: PageProps) {
           _count: { select: { works: true } },
         },
         orderBy,
-        take: 100,
       }),
       prisma.university.findMany({ orderBy: { name: "asc" } }),
       prisma.university.findMany({
@@ -85,8 +122,19 @@ export default async function LabsPage({ searchParams }: PageProps) {
       }),
     ]);
 
+  const filtered =
+    minWorks > 0
+      ? allMatches.filter((l) => l._count.works >= minWorks)
+      : allMatches;
+  const matchCount = filtered.length;
+  const labs = filtered.slice(0, 100);
+
   const hasFilters =
-    q !== "" || universityIds.length > 0 || prefecture !== "";
+    q !== "" ||
+    universityIds.length > 0 ||
+    prefecture !== "" ||
+    fieldCodes.length > 0 ||
+    minWorks > 0;
 
   return (
     <main className="min-h-screen p-8 max-w-7xl mx-auto">
@@ -121,9 +169,30 @@ export default async function LabsPage({ searchParams }: PageProps) {
                 className="w-full px-3 py-1.5 border rounded text-sm"
               />
               <p className="text-xs text-gray-500 mt-1">
-                研究室名・主宰者・論文タイトルを対象に検索
+                研究室名・主宰者・AI要約・論文タイトル（日本語/英語）を対象
               </p>
             </div>
+
+            <fieldset>
+              <legend className="text-sm font-medium mb-2">分野</legend>
+              <div className="space-y-1">
+                {FIELD_OPTIONS.map((f) => (
+                  <label
+                    key={f.code}
+                    className="flex items-center text-sm cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      name="f"
+                      value={f.code}
+                      defaultChecked={fieldCodes.includes(f.code)}
+                      className="mr-2"
+                    />
+                    {f.label}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
 
             <fieldset>
               <legend className="text-sm font-medium mb-2">大学</legend>
@@ -157,6 +226,23 @@ export default async function LabsPage({ searchParams }: PageProps) {
                 {prefectureRows.map((r) => (
                   <option key={r.prefecture} value={r.prefecture ?? ""}>
                     {r.prefecture}
+                  </option>
+                ))}
+              </select>
+            </fieldset>
+
+            <fieldset>
+              <legend className="text-sm font-medium mb-2">
+                論文数（下限）
+              </legend>
+              <select
+                name="min"
+                defaultValue={String(minWorks)}
+                className="w-full px-3 py-1.5 border rounded text-sm bg-white"
+              >
+                {MIN_WORKS_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
                   </option>
                 ))}
               </select>
@@ -222,23 +308,36 @@ export default async function LabsPage({ searchParams }: PageProps) {
             </p>
           ) : (
             <ul className="space-y-3">
-              {labs.map((lab) => (
-                <li key={lab.id}>
-                  <Link
-                    href={`/labs/${lab.id}`}
-                    className="block p-4 border rounded hover:bg-gray-50 transition-colors"
-                  >
-                    <div className="font-semibold">{lab.name}</div>
-                    <div className="text-sm text-gray-600 mt-1">
-                      {lab.professorName}・{lab.university.name}
-                      {lab.department ? `（${lab.department}）` : ""}
-                    </div>
-                    <div className="text-xs text-gray-500 mt-1">
-                      論文 {lab._count.works} 件
-                    </div>
-                  </Link>
-                </li>
-              ))}
+              {labs.map((lab) => {
+                const fieldJp = lab.primaryFieldCode
+                  ? (FIELD_LABEL_BY_CODE[lab.primaryFieldCode] ??
+                    lab.primaryFieldName)
+                  : null;
+                return (
+                  <li key={lab.id}>
+                    <Link
+                      href={`/labs/${lab.id}`}
+                      className="block p-4 border rounded hover:bg-gray-50 transition-colors"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="font-semibold">{lab.name}</div>
+                        {fieldJp && (
+                          <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded whitespace-nowrap shrink-0">
+                            {fieldJp}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-sm text-gray-600 mt-1">
+                        {lab.professorName}・{lab.university.name}
+                        {lab.department ? `（${lab.department}）` : ""}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        論文 {lab._count.works} 件
+                      </div>
+                    </Link>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>

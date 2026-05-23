@@ -35,6 +35,8 @@ model Lab {
   researchmapId        String?   @unique @map("researchmap_id")
   openalexAuthorId     String?   @unique @map("openalex_author_id")
   orcid                String?   @unique
+  primaryFieldCode     String?   @map("primary_field_code")
+  primaryFieldName     String?   @map("primary_field_name")
   aiSummary            String?   @map("ai_summary")
   aiSummaryGeneratedAt DateTime? @map("ai_summary_generated_at")
   aiSummarySourceHash  String?   @map("ai_summary_source_hash")
@@ -56,6 +58,7 @@ model Work {
   id        Int      @id @default(autoincrement())
   labId     Int      @map("lab_id")
   title     String
+  titleJa   String?  @map("title_ja")
   abstract  String?
   year      Int?
   doi       String?

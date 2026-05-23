@@ -101,12 +101,17 @@ export default async function LabDetailPage({ params }: PageProps) {
                       rel="noopener noreferrer"
                       className="text-blue-600 hover:underline"
                     >
-                      {w.title}
+                      {w.titleJa ?? w.title}
                     </a>
                   ) : (
-                    w.title
+                    w.titleJa ?? w.title
                   )}
                 </div>
+                {w.titleJa && (
+                  <div className="text-xs text-gray-500 mt-1 italic">
+                    {w.title}
+                  </div>
+                )}
                 {w.doi && (
                   <div className="text-xs text-gray-500 mt-1">DOI: {w.doi}</div>
                 )}
