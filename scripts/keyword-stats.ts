@@ -7,21 +7,18 @@ import { prisma } from "../lib/db";
  */
 
 const KEYWORDS = [
-  // 英語・一般
-  "cell", "protein", "gene", "DNA", "RNA", "neuron", "brain",
-  "cancer", "tumor", "stem", "immune", "antibody", "kinase",
-  "receptor", "synapse", "molecular", "structural",
-  // トピック
-  "CRISPR", "neural", "genome", "epigenetic",
-  "transcription", "mitochondria", "autophagy", "apoptosis",
-  // モデル生物
-  "mouse", "Drosophila", "yeast", "zebrafish",
-  // 疾患
-  "Alzheimer", "Parkinson", "diabetes",
-  // 日本語（論文タイトルは英語が多いのでヒットは少ない見込み）
-  "細胞", "神経", "脳", "がん", "遺伝子", "免疫",
-  // 日本人の姓（OpenAlex の display_name に出る場合）
-  "Tanaka", "Yamada", "Suzuki", "Sato", "Yamamoto", "Hirokawa",
+  // 日本語・一般
+  "細胞", "神経", "脳", "がん", "腫瘍", "遺伝子", "ゲノム",
+  "免疫", "抗体", "タンパク質", "受容体", "キナーゼ",
+  "アポトーシス", "発生", "幹細胞", "シナプス", "ミトコンドリア",
+  // 日本語・疾患・モデル生物
+  "アルツハイマー", "パーキンソン", "糖尿病", "マウス",
+  // 略号は英語のまま
+  "DNA", "RNA", "CRISPR",
+  // 英語の重要語（比較用）
+  "cell", "cancer", "neuron", "immune",
+  // 日本人の姓
+  "Tanaka", "Suzuki", "Sato", "Hirokawa",
 ];
 
 async function main() {
@@ -34,7 +31,17 @@ async function main() {
         OR: [
           { name: { contains: k, mode: "insensitive" } },
           { professorName: { contains: k, mode: "insensitive" } },
-          { works: { some: { title: { contains: k, mode: "insensitive" } } } },
+          { aiSummary: { contains: k, mode: "insensitive" } },
+          {
+            works: {
+              some: {
+                OR: [
+                  { title: { contains: k, mode: "insensitive" } },
+                  { titleJa: { contains: k, mode: "insensitive" } },
+                ],
+              },
+            },
+          },
         ],
       },
     });
