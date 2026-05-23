@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { generateLabSummary } from "@/lib/summary";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,28 @@ export default async function LabDetailPage({ params }: PageProps) {
   });
 
   if (!lab) notFound();
+
+  // AI 要約：未生成かつ論文があれば、初回閲覧時にオンデマンド生成 → DB にキャッシュ
+  if (!lab.aiSummary && lab.works.length > 0) {
+    try {
+      const summary = await generateLabSummary(
+        lab.name,
+        lab.works.slice(0, 25).map((w) => ({
+          title: w.title,
+          abstract: w.abstract,
+          year: w.year,
+        })),
+      );
+      await prisma.lab.update({
+        where: { id: lab.id },
+        data: { aiSummary: summary, aiSummaryGeneratedAt: new Date() },
+      });
+      lab.aiSummary = summary;
+    } catch (e) {
+      console.error("AI summary generation failed:", e);
+      // 失敗してもページはレンダリングを続ける（プレースホルダ表示）
+    }
+  }
 
   return (
     <main className="min-h-screen p-8 max-w-4xl mx-auto">
