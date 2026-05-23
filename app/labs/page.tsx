@@ -31,7 +31,7 @@ const MIN_WORKS_OPTIONS = [
   { value: "20", label: "20 件以上" },
 ] as const;
 
-// 検索上位の日本語キーワード（ワンクリックで絞り込めるショートカット）
+// 検索上位の日本語キーワード（チップでトグル選択）
 const POPULAR_KEYWORDS = [
   "細胞", "遺伝子", "がん", "マウス", "神経", "タンパク質",
   "免疫", "脳", "腫瘍", "受容体", "ゲノム", "幹細胞",
@@ -40,6 +40,8 @@ const POPULAR_KEYWORDS = [
 interface PageProps {
   searchParams: Promise<{
     q?: string;
+    kw?: string | string[];
+    mode?: string;
     u?: string | string[];
     p?: string;
     sort?: string;
@@ -54,9 +56,37 @@ function asArray(v: string | string[] | undefined): string[] {
   return [v];
 }
 
+function buildKeywordCondition(kw: string): Prisma.LabWhereInput {
+  return {
+    OR: [
+      { name: { contains: kw, mode: "insensitive" } },
+      { professorName: { contains: kw, mode: "insensitive" } },
+      { aiSummary: { contains: kw, mode: "insensitive" } },
+      {
+        works: {
+          some: {
+            OR: [
+              { title: { contains: kw, mode: "insensitive" } },
+              { titleJa: { contains: kw, mode: "insensitive" } },
+            ],
+          },
+        },
+      },
+    ],
+  };
+}
+
 export default async function LabsPage({ searchParams }: PageProps) {
   const params = await searchParams;
-  const q = params.q?.trim() ?? "";
+  const qInput = params.q?.trim() ?? "";
+  const kwParams = asArray(params.kw)
+    .map((k) => k.trim())
+    .filter((k) => k.length > 0);
+  // フォーム入力のキーワードもキーワードリストへ統合（重複排除）
+  const selectedKeywords = Array.from(
+    new Set(qInput ? [...kwParams, qInput] : kwParams),
+  );
+  const mode = params.mode === "or" ? "or" : "and"; // default: and
   const universityIds = asArray(params.u)
     .map((s) => Number(s))
     .filter((n) => Number.isInteger(n) && n > 0);
@@ -65,38 +95,35 @@ export default async function LabsPage({ searchParams }: PageProps) {
   const fieldCodes = asArray(params.f).filter((c) => /^\d+$/.test(c));
   const minWorks = Math.max(0, Number(params.min) || 0);
 
-  // 人気キーワードのチップ用 — 現在の絞り込み（q 以外）を保ったまま q を入れ替える
-  const chipHref = (kw: string) => {
+  // チップ／削除リンク用 — 指定キーワードのトグル URL を返す
+  const toggleKeywordHref = (kw: string) => {
     const u = new URLSearchParams();
     for (const id of universityIds) u.append("u", String(id));
     if (prefecture) u.set("p", prefecture);
     for (const code of fieldCodes) u.append("f", code);
     if (minWorks > 0) u.set("min", String(minWorks));
     if (sort !== "works") u.set("sort", sort);
-    u.set("q", kw);
+    if (mode !== "and") u.set("mode", mode);
+
+    const isSelected = selectedKeywords.includes(kw);
+    const next = isSelected
+      ? selectedKeywords.filter((k) => k !== kw)
+      : [...selectedKeywords, kw];
+    for (const k of next) u.append("kw", k);
     return `/labs?${u.toString()}`;
   };
 
   // WHERE 句を組み立て
   const conditions: Prisma.LabWhereInput[] = [];
-  if (q) {
-    conditions.push({
-      OR: [
-        { name: { contains: q, mode: "insensitive" } },
-        { professorName: { contains: q, mode: "insensitive" } },
-        { aiSummary: { contains: q, mode: "insensitive" } },
-        {
-          works: {
-            some: {
-              OR: [
-                { title: { contains: q, mode: "insensitive" } },
-                { titleJa: { contains: q, mode: "insensitive" } },
-              ],
-            },
-          },
-        },
-      ],
-    });
+  if (selectedKeywords.length > 0) {
+    const keywordConditions = selectedKeywords.map(buildKeywordCondition);
+    if (mode === "and") {
+      // 各キーワードが（いずれかのフィールドに）含まれることを AND で要求
+      conditions.push(...keywordConditions);
+    } else {
+      // いずれかのキーワードが（いずれかのフィールドに）含まれる
+      conditions.push({ OR: keywordConditions });
+    }
   }
   if (universityIds.length > 0) {
     conditions.push({ universityId: { in: universityIds } });
@@ -110,7 +137,6 @@ export default async function LabsPage({ searchParams }: PageProps) {
   const where: Prisma.LabWhereInput =
     conditions.length > 0 ? { AND: conditions } : {};
 
-  // ORDER BY
   const orderBy: Prisma.LabOrderByWithRelationInput =
     sort === "name"
       ? { professorName: "asc" }
@@ -118,8 +144,6 @@ export default async function LabsPage({ searchParams }: PageProps) {
         ? { createdAt: "desc" }
         : { works: { _count: "desc" } };
 
-  // 全件フェッチ → 論文数で post-filter
-  // （Prisma で count フィルタは複雑なので、現状件数なら全件取って絞る方が単純）
   const [totalCount, allMatches, universities, prefectureRows] =
     await Promise.all([
       prisma.lab.count(),
@@ -130,7 +154,7 @@ export default async function LabsPage({ searchParams }: PageProps) {
           _count: { select: { works: true } },
         },
         orderBy,
-        take: 200, // 全件は取らない（パフォーマンス対策）。MVP規模では実質全件。
+        take: 200,
       }),
       prisma.university.findMany({ orderBy: { name: "asc" } }),
       prisma.university.findMany({
@@ -149,7 +173,7 @@ export default async function LabsPage({ searchParams }: PageProps) {
   const labs = filtered.slice(0, 100);
 
   const hasFilters =
-    q !== "" ||
+    selectedKeywords.length > 0 ||
     universityIds.length > 0 ||
     prefecture !== "" ||
     fieldCodes.length > 0 ||
@@ -183,28 +207,90 @@ export default async function LabsPage({ searchParams }: PageProps) {
                 id="q-input"
                 type="text"
                 name="q"
-                defaultValue={q}
-                placeholder="例: 細胞、神経、ゲノム..."
+                defaultValue=""
+                placeholder="例: ゲノム編集..."
                 className="w-full px-3 py-1.5 border rounded text-sm"
               />
               <p className="text-xs text-gray-500 mt-1">
-                研究室名・主宰者・AI要約・論文タイトル（日本語/英語）を対象
+                入力して「絞り込む」で追加。複数のキーワードを組み合わせられます
               </p>
+
+              {/* チップ：ワンクリックで追加／除外 */}
               <div className="flex flex-wrap gap-1 mt-2">
-                {POPULAR_KEYWORDS.map((kw) => (
-                  <Link
-                    key={kw}
-                    href={chipHref(kw)}
-                    className={
-                      q === kw
-                        ? "text-xs px-2 py-0.5 bg-blue-600 text-white rounded"
-                        : "text-xs px-2 py-0.5 bg-white border rounded text-gray-700 hover:bg-gray-100 hover:border-gray-400"
-                    }
-                  >
-                    {kw}
-                  </Link>
-                ))}
+                {POPULAR_KEYWORDS.map((kw) => {
+                  const selected = selectedKeywords.includes(kw);
+                  return (
+                    <Link
+                      key={kw}
+                      href={toggleKeywordHref(kw)}
+                      className={
+                        selected
+                          ? "text-xs px-2 py-0.5 bg-blue-600 text-white rounded"
+                          : "text-xs px-2 py-0.5 bg-white border rounded text-gray-700 hover:bg-gray-100 hover:border-gray-400"
+                      }
+                    >
+                      {kw}
+                    </Link>
+                  );
+                })}
               </div>
+
+              {/* 選択中のキーワード（複数選択時に表示） */}
+              {selectedKeywords.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-3 p-2 bg-blue-50 border border-blue-200 rounded">
+                  <span className="text-xs text-blue-900 self-center mr-1">
+                    選択中（{selectedKeywords.length}件）:
+                  </span>
+                  {selectedKeywords.map((kw) => (
+                    <Link
+                      key={kw}
+                      href={toggleKeywordHref(kw)}
+                      className="text-xs px-2 py-0.5 bg-white border border-blue-300 rounded text-blue-900 hover:bg-blue-100 inline-flex items-center gap-1"
+                      title="クリックで削除"
+                    >
+                      {kw} <span className="text-blue-500">×</span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+
+              {/* AND / OR モード */}
+              {selectedKeywords.length >= 2 && (
+                <fieldset className="mt-3">
+                  <legend className="text-xs text-gray-600 mb-1">
+                    複数キーワードの組合せ
+                  </legend>
+                  <div className="flex gap-3 text-sm">
+                    <label className="inline-flex items-center cursor-pointer">
+                      <input
+                        type="radio"
+                        name="mode"
+                        value="and"
+                        defaultChecked={mode === "and"}
+                        className="mr-1"
+                      />
+                      AND（すべて含む）
+                    </label>
+                    <label className="inline-flex items-center cursor-pointer">
+                      <input
+                        type="radio"
+                        name="mode"
+                        value="or"
+                        defaultChecked={mode === "or"}
+                        className="mr-1"
+                      />
+                      OR（いずれか）
+                    </label>
+                  </div>
+                </fieldset>
+              )}
+
+              {/* 既存の kw を hidden で持ち越し（フォーム再送時に維持） */}
+              {selectedKeywords
+                .filter((k) => k !== qInput)
+                .map((k) => (
+                  <input key={k} type="hidden" name="kw" value={k} />
+                ))}
             </div>
 
             <fieldset>
@@ -323,6 +409,11 @@ export default async function LabsPage({ searchParams }: PageProps) {
                   {matchCount}
                 </span>{" "}
                 件ヒット（全 {totalCount} 件中）
+                {selectedKeywords.length >= 2 && (
+                  <span className="ml-1 text-xs text-gray-500">
+                    [{mode === "and" ? "AND" : "OR"}]
+                  </span>
+                )}
               </>
             ) : (
               <>
