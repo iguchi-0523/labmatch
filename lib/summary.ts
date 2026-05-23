@@ -74,5 +74,6 @@ export async function generateLabSummary(
   if (!textBlock || textBlock.type !== "text") {
     throw new Error("Claude returned no text content.");
   }
-  return textBlock.text.trim();
+  // モデルが付けがちな先頭の Markdown 見出しを除去（システムプロンプトの指示に反する場合のセーフティ）
+  return textBlock.text.trim().replace(/^#+[^\n]*\n+/, "");
 }
