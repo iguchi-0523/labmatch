@@ -35,10 +35,34 @@ const MIN_WORKS_OPTIONS = [
   { value: "20", label: "20 件以上" },
 ] as const;
 
-// 検索上位の日本語キーワード（チップでトグル選択）
-const POPULAR_KEYWORDS = [
-  "細胞", "遺伝子", "がん", "マウス", "神経", "タンパク質",
-  "免疫", "脳", "腫瘍", "受容体", "ゲノム", "幹細胞",
+// テーマ別キーワードツリー
+const KEYWORD_GROUPS: { label: string; keywords: string[] }[] = [
+  {
+    label: "細胞・分子",
+    keywords: [
+      "細胞", "遺伝子", "タンパク質", "DNA", "RNA",
+      "ゲノム", "受容体", "キナーゼ", "ミトコンドリア",
+    ],
+  },
+  {
+    label: "神経科学",
+    keywords: ["神経", "脳", "シナプス"],
+  },
+  {
+    label: "医学・疾患",
+    keywords: [
+      "がん", "腫瘍", "免疫", "抗体",
+      "アルツハイマー", "パーキンソン", "糖尿病",
+    ],
+  },
+  {
+    label: "発生・モデル生物",
+    keywords: ["発生", "幹細胞", "アポトーシス", "マウス"],
+  },
+  {
+    label: "技術",
+    keywords: ["CRISPR"],
+  },
 ];
 
 interface PageProps {
@@ -86,11 +110,10 @@ export default async function LabsPage({ searchParams }: PageProps) {
   const kwParams = asArray(params.kw)
     .map((k) => k.trim())
     .filter((k) => k.length > 0);
-  // フォーム入力のキーワードもキーワードリストへ統合（重複排除）
   const selectedKeywords = Array.from(
     new Set(qInput ? [...kwParams, qInput] : kwParams),
   );
-  const mode = params.mode === "or" ? "or" : "and"; // default: and
+  const mode = params.mode === "or" ? "or" : "and";
   const universityIds = asArray(params.u)
     .map((s) => Number(s))
     .filter((n) => Number.isInteger(n) && n > 0);
@@ -99,7 +122,6 @@ export default async function LabsPage({ searchParams }: PageProps) {
   const fieldCodes = asArray(params.f).filter((c) => /^\d+$/.test(c));
   const minWorks = Math.max(0, Number(params.min) || 0);
 
-  // チップ／削除リンク用 — 指定キーワードのトグル URL を返す
   const toggleKeywordHref = (kw: string) => {
     const u = new URLSearchParams();
     for (const id of universityIds) u.append("u", String(id));
@@ -117,15 +139,12 @@ export default async function LabsPage({ searchParams }: PageProps) {
     return `/labs?${u.toString()}`;
   };
 
-  // WHERE 句を組み立て
   const conditions: Prisma.LabWhereInput[] = [];
   if (selectedKeywords.length > 0) {
     const keywordConditions = selectedKeywords.map(buildKeywordCondition);
     if (mode === "and") {
-      // 各キーワードが（いずれかのフィールドに）含まれることを AND で要求
       conditions.push(...keywordConditions);
     } else {
-      // いずれかのキーワードが（いずれかのフィールドに）含まれる
       conditions.push({ OR: keywordConditions });
     }
   }
@@ -183,66 +202,59 @@ export default async function LabsPage({ searchParams }: PageProps) {
     fieldCodes.length > 0 ||
     minWorks > 0;
 
+  // Tailwind の動的クラスは効かないので、明示的にスタイルを切り替える
+  const chipBase =
+    "inline-block text-sm leading-none px-2.5 py-1.5 rounded-full transition-colors";
+  const chipUnselected =
+    "bg-white border border-gray-300 text-gray-800 hover:bg-blue-50 hover:border-blue-400";
+  const chipSelected =
+    "bg-blue-600 border border-blue-600 text-white hover:bg-blue-700";
+
   return (
-    <main className="min-h-screen p-8 max-w-7xl mx-auto">
+    <main className="min-h-screen px-6 py-10 max-w-7xl mx-auto">
       <nav className="mb-4 text-sm">
         <Link href="/" className="text-blue-600 hover:underline">
           ← トップ
         </Link>
       </nav>
-      <h1 className="text-3xl font-bold mb-6">研究室検索</h1>
+      <h1 className="text-3xl font-bold mb-2 text-gray-900">研究室検索</h1>
+      <p className="text-sm text-gray-600 mb-8">
+        キーワード・分野・大学などで絞り込み。複数キーワードは AND / OR で組合せ可。
+      </p>
 
-      <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-[320px_1fr] gap-8">
         {/* サイドバー：絞り込み */}
         <aside>
           <form
             method="get"
             action="/labs"
-            className="space-y-5 p-4 bg-gray-50 rounded border"
+            className="space-y-6 p-5 bg-gray-50 rounded-lg border border-gray-200"
           >
+            {/* キーワード入力 */}
             <div>
               <label
-                className="block text-sm font-medium mb-1"
+                className="block text-sm font-semibold text-gray-900 mb-2"
                 htmlFor="q-input"
               >
-                キーワード
+                キーワード検索
               </label>
               <input
                 id="q-input"
                 type="text"
                 name="q"
                 defaultValue=""
-                placeholder="例: ゲノム編集..."
-                className="w-full px-3 py-1.5 border rounded text-sm"
+                placeholder="例: ゲノム編集"
+                className="w-full px-3 py-2 border border-gray-300 rounded text-sm bg-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
-              <p className="text-xs text-gray-500 mt-1">
-                入力して「絞り込む」で追加。複数のキーワードを組み合わせられます
+              <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
+                研究室名・主宰者・AI 要約・論文タイトル（日本語/英語）を対象。
+                入力して「絞り込む」で追加されます。
               </p>
 
-              {/* チップ：ワンクリックで追加／除外 */}
-              <div className="flex flex-wrap gap-1 mt-2">
-                {POPULAR_KEYWORDS.map((kw) => {
-                  const selected = selectedKeywords.includes(kw);
-                  return (
-                    <Link
-                      key={kw}
-                      href={toggleKeywordHref(kw)}
-                      className={
-                        selected
-                          ? "text-xs px-2 py-0.5 bg-blue-600 text-white rounded"
-                          : "text-xs px-2 py-0.5 bg-white border rounded text-gray-700 hover:bg-gray-100 hover:border-gray-400"
-                      }
-                    >
-                      {kw}
-                    </Link>
-                  );
-                })}
-              </div>
-
-              {/* 選択中のキーワード（複数選択時に表示） */}
+              {/* 選択中のキーワード */}
               {selectedKeywords.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-3 p-2 bg-blue-50 border border-blue-200 rounded">
-                  <span className="text-xs text-blue-900 self-center mr-1">
+                <div className="flex flex-wrap gap-1.5 mt-3 p-2.5 bg-blue-50 border border-blue-200 rounded">
+                  <span className="text-xs text-blue-900 self-center mr-1 font-medium">
                     選択中（{selectedKeywords.length}件）:
                   </span>
                   {selectedKeywords.map((kw) => (
@@ -258,7 +270,7 @@ export default async function LabsPage({ searchParams }: PageProps) {
                 </div>
               )}
 
-              {/* AND / OR モード */}
+              {/* AND / OR */}
               {selectedKeywords.length >= 2 && (
                 <fieldset className="mt-3">
                   <legend className="text-xs text-gray-600 mb-1">
@@ -289,7 +301,7 @@ export default async function LabsPage({ searchParams }: PageProps) {
                 </fieldset>
               )}
 
-              {/* 既存の kw を hidden で持ち越し（フォーム再送時に維持） */}
+              {/* 既存の kw を hidden で持ち越し */}
               {selectedKeywords
                 .filter((k) => k !== qInput)
                 .map((k) => (
@@ -297,13 +309,58 @@ export default async function LabsPage({ searchParams }: PageProps) {
                 ))}
             </div>
 
-            <fieldset>
-              <legend className="text-sm font-medium mb-2">分野</legend>
-              <div className="space-y-1">
+            {/* キーワードツリー */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900 mb-2">
+                よく検索されるキーワード
+              </h3>
+              <div className="space-y-1.5">
+                {KEYWORD_GROUPS.map((group) => (
+                  <details
+                    key={group.label}
+                    open
+                    className="group bg-white border border-gray-200 rounded"
+                  >
+                    <summary className="cursor-pointer list-none px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50 flex items-center justify-between">
+                      <span>{group.label}</span>
+                      <span className="text-gray-400 text-xs group-open:rotate-90 transition-transform">
+                        ▶
+                      </span>
+                    </summary>
+                    <div className="flex flex-wrap gap-1.5 px-3 pb-3 pt-1 border-t border-gray-100">
+                      {group.keywords.map((kw) => {
+                        const selected = selectedKeywords.includes(kw);
+                        return (
+                          <Link
+                            key={kw}
+                            href={toggleKeywordHref(kw)}
+                            className={`${chipBase} ${
+                              selected ? chipSelected : chipUnselected
+                            }`}
+                          >
+                            {kw}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </details>
+                ))}
+              </div>
+            </div>
+
+            {/* 分野 */}
+            <details open className="group">
+              <summary className="cursor-pointer list-none text-sm font-semibold text-gray-900 mb-2 flex items-center justify-between">
+                <span>分野</span>
+                <span className="text-gray-400 text-xs group-open:rotate-90 transition-transform">
+                  ▶
+                </span>
+              </summary>
+              <div className="space-y-1.5 mt-2 pl-1">
                 {FIELD_OPTIONS.map((f) => (
                   <label
                     key={f.code}
-                    className="flex items-center text-sm cursor-pointer"
+                    className="flex items-center text-sm cursor-pointer text-gray-800"
                   >
                     <input
                       type="checkbox"
@@ -316,15 +373,21 @@ export default async function LabsPage({ searchParams }: PageProps) {
                   </label>
                 ))}
               </div>
-            </fieldset>
+            </details>
 
-            <fieldset>
-              <legend className="text-sm font-medium mb-2">大学</legend>
-              <div className="space-y-1 max-h-64 overflow-y-auto">
+            {/* 大学 */}
+            <details open className="group">
+              <summary className="cursor-pointer list-none text-sm font-semibold text-gray-900 mb-2 flex items-center justify-between">
+                <span>大学</span>
+                <span className="text-gray-400 text-xs group-open:rotate-90 transition-transform">
+                  ▶
+                </span>
+              </summary>
+              <div className="space-y-1.5 mt-2 pl-1 max-h-64 overflow-y-auto">
                 {universities.map((u) => (
                   <label
                     key={u.id}
-                    className="flex items-center text-sm cursor-pointer"
+                    className="flex items-center text-sm cursor-pointer text-gray-800"
                   >
                     <input
                       type="checkbox"
@@ -337,66 +400,80 @@ export default async function LabsPage({ searchParams }: PageProps) {
                   </label>
                 ))}
               </div>
-            </fieldset>
+            </details>
 
-            <fieldset>
-              <legend className="text-sm font-medium mb-2">都道府県</legend>
-              <select
-                name="p"
-                defaultValue={prefecture}
-                className="w-full px-3 py-1.5 border rounded text-sm bg-white"
-              >
-                <option value="">すべて</option>
-                {prefectureRows.map((r) => (
-                  <option key={r.prefecture} value={r.prefecture ?? ""}>
-                    {r.prefecture}
-                  </option>
-                ))}
-              </select>
-            </fieldset>
+            {/* 都道府県・件数・並び替え */}
+            <details open className="group">
+              <summary className="cursor-pointer list-none text-sm font-semibold text-gray-900 mb-2 flex items-center justify-between">
+                <span>その他の条件</span>
+                <span className="text-gray-400 text-xs group-open:rotate-90 transition-transform">
+                  ▶
+                </span>
+              </summary>
+              <div className="space-y-3 mt-2 pl-1">
+                <div>
+                  <label className="block text-xs text-gray-700 mb-1">
+                    都道府県
+                  </label>
+                  <select
+                    name="p"
+                    defaultValue={prefecture}
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm bg-white"
+                  >
+                    <option value="">すべて</option>
+                    {prefectureRows.map((r) => (
+                      <option key={r.prefecture} value={r.prefecture ?? ""}>
+                        {r.prefecture}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-700 mb-1">
+                    論文数（下限）
+                  </label>
+                  <select
+                    name="min"
+                    defaultValue={String(minWorks)}
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm bg-white"
+                  >
+                    {MIN_WORKS_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-700 mb-1">
+                    並び替え
+                  </label>
+                  <select
+                    name="sort"
+                    defaultValue={sort}
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm bg-white"
+                  >
+                    {SORT_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </details>
 
-            <fieldset>
-              <legend className="text-sm font-medium mb-2">
-                論文数（下限）
-              </legend>
-              <select
-                name="min"
-                defaultValue={String(minWorks)}
-                className="w-full px-3 py-1.5 border rounded text-sm bg-white"
-              >
-                {MIN_WORKS_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </fieldset>
-
-            <fieldset>
-              <legend className="text-sm font-medium mb-2">並び替え</legend>
-              <select
-                name="sort"
-                defaultValue={sort}
-                className="w-full px-3 py-1.5 border rounded text-sm bg-white"
-              >
-                {SORT_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </fieldset>
-
-            <div className="flex gap-2">
+            {/* ボタン */}
+            <div className="flex gap-2 pt-1">
               <button
                 type="submit"
-                className="flex-1 px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium"
+                className="flex-1 px-3 py-2.5 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-semibold"
               >
                 絞り込む
               </button>
               <Link
                 href="/labs"
-                className="px-3 py-2 border rounded text-sm text-gray-700 hover:bg-gray-100"
+                className="px-3 py-2.5 border border-gray-300 rounded text-sm text-gray-700 hover:bg-gray-100"
               >
                 リセット
               </Link>
@@ -406,33 +483,37 @@ export default async function LabsPage({ searchParams }: PageProps) {
 
         {/* 結果 */}
         <section>
-          <div className="mb-4 text-sm text-gray-600">
+          <div className="mb-4 text-sm text-gray-700 flex items-baseline gap-2">
             {hasFilters ? (
               <>
-                <span className="font-semibold text-gray-900">
+                <span className="font-semibold text-lg text-gray-900">
                   {matchCount}
-                </span>{" "}
-                件ヒット（全 {totalCount} 件中）
+                </span>
+                <span>件ヒット（全 {totalCount} 件中）</span>
                 {selectedKeywords.length >= 2 && (
-                  <span className="ml-1 text-xs text-gray-500">
-                    [{mode === "and" ? "AND" : "OR"}]
+                  <span className="text-xs px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">
+                    {mode === "and" ? "AND" : "OR"}
                   </span>
                 )}
               </>
             ) : (
               <>
-                全{" "}
-                <span className="font-semibold text-gray-900">
+                <span>全</span>
+                <span className="font-semibold text-lg text-gray-900">
                   {totalCount}
-                </span>{" "}
-                件
+                </span>
+                <span>件</span>
               </>
             )}
-            {labs.length < matchCount && <> — 上位 {labs.length} 件を表示</>}
+            {labs.length < matchCount && (
+              <span className="text-xs text-gray-500 ml-auto">
+                上位 {labs.length} 件を表示
+              </span>
+            )}
           </div>
 
           {labs.length === 0 ? (
-            <p className="text-gray-500 py-8 text-center">
+            <p className="text-gray-500 py-12 text-center bg-gray-50 rounded border border-gray-200">
               該当する研究室がありません。条件を変えてみてください。
             </p>
           ) : (
@@ -446,22 +527,34 @@ export default async function LabsPage({ searchParams }: PageProps) {
                   <li key={lab.id}>
                     <Link
                       href={`/labs/${lab.id}`}
-                      className="block p-4 border rounded hover:bg-gray-50 transition-colors"
+                      className="block p-4 bg-white border border-gray-200 rounded-lg hover:border-blue-400 hover:shadow-sm transition-all"
                     >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="font-semibold">{lab.name}</div>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="font-semibold text-base text-gray-900 leading-snug">
+                            {lab.name}
+                          </div>
+                          <div className="text-sm text-gray-700 mt-1">
+                            <span className="font-medium">
+                              {lab.professorName}
+                            </span>
+                            <span className="text-gray-400 mx-1.5">/</span>
+                            <span>{lab.university.name}</span>
+                            {lab.department && (
+                              <span className="text-gray-500">
+                                （{lab.department}）
+                              </span>
+                            )}
+                          </div>
+                        </div>
                         {fieldJp && (
-                          <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded whitespace-nowrap shrink-0">
+                          <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded whitespace-nowrap shrink-0 border border-blue-200">
                             {fieldJp}
                           </span>
                         )}
                       </div>
-                      <div className="text-sm text-gray-600 mt-1">
-                        {lab.professorName}・{lab.university.name}
-                        {lab.department ? `（${lab.department}）` : ""}
-                      </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        論文 {lab._count.works} 件
+                      <div className="text-xs text-gray-500 mt-2 flex items-center gap-2">
+                        <span>論文 {lab._count.works} 件</span>
                       </div>
                     </Link>
                   </li>
