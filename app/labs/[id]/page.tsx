@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { generateLabSummary } from "@/lib/summary";
+import { FavoriteButton } from "@/components/FavoriteButton";
+import { RelatedLabsSection } from "@/components/RelatedLabsSection";
+import { FIELD_LABEL_BY_CODE } from "@/lib/field-labels";
+import { getRelatedLabs } from "@/lib/recommendations";
 
 export const dynamic = "force-dynamic";
 
@@ -18,15 +21,13 @@ export async function generateMetadata({ params }: PageProps) {
     select: {
       name: true,
       professorName: true,
-      professorNameJa: true,
       university: { select: { name: true } },
     },
   });
   if (!lab) return { title: "見つかりません" };
-  const displayName = lab.professorNameJa ?? lab.professorName;
   return {
-    title: `${displayName} 研究室`,
-    description: `${displayName}（${lab.university.name}）の研究室紹介ページ。直近 5 年の研究成果と AI 要約。`,
+    title: `${lab.professorName} 研究室`,
+    description: `${lab.professorName}（${lab.university.name}）の研究室紹介ページ。直近 5 年の研究成果と AI 要約。`,
   };
 }
 
@@ -45,145 +46,342 @@ export default async function LabDetailPage({ params }: PageProps) {
     },
   });
 
-  if (!lab) notFound();
+  if (!lab || lab.deletedAt) notFound();
 
-  // AI 要約：未生成かつ論文があれば、初回閲覧時にオンデマンド生成 → DB にキャッシュ
-  if (!lab.aiSummary && lab.works.length > 0) {
-    try {
-      const summary = await generateLabSummary(
-        lab.name,
-        lab.works.slice(0, 25).map((w) => ({
-          title: w.title,
-          abstract: w.abstract,
-          year: w.year,
-        })),
-      );
-      await prisma.lab.update({
-        where: { id: lab.id },
-        data: { aiSummary: summary, aiSummaryGeneratedAt: new Date() },
-      });
-      lab.aiSummary = summary;
-    } catch (e) {
-      console.error("AI summary generation failed:", e);
-    }
-  }
+  // 関連研究室をタグ・分野・大学から算出
+  const relatedLabs = await getRelatedLabs(
+    {
+      id: lab.id,
+      tags: lab.tags,
+      primaryFieldCode: lab.primaryFieldCode,
+      universityId: lab.universityId,
+    },
+    8,
+  );
+
+  // AI 要約は cron/backfill で事前生成のみ（コスト保護のためオンデマンド生成は廃止）。
+  // 「薄グレー」方針：hasAbstract=true の works のみが要約対象。
+  const worksWithAbstract = lab.works.filter((w) => w.hasAbstract);
 
   // 外部リンク用の URL を組み立て（ID が無ければ検索リンクにフォールバック）
-  const nameForSearch = lab.professorNameJa ?? lab.professorName;
-  const displayName = lab.professorNameJa ?? lab.professorName;
-
-  const researchmapHref = lab.researchmapId
-    ? `https://researchmap.jp/${lab.researchmapId}`
-    : `https://researchmap.jp/researchers?name=${encodeURIComponent(nameForSearch)}`;
+  // 全てローマ字氏名（lab.professorName）を使う。
+  // researchmap は詳細検索パラメータ `name` + `affiliation`（+ `section` 部局）を併用して
+  // 同名異研究者を絞り込む。
   const researchmapDirect = !!lab.researchmapId;
+  const researchmapHref = (() => {
+    if (researchmapDirect) {
+      return `https://researchmap.jp/${lab.researchmapId}`;
+    }
+    const p = new URLSearchParams();
+    p.set("name", lab.professorName);
+    p.set("affiliation", lab.university.name);
+    if (lab.department) p.set("section", lab.department);
+    return `https://researchmap.jp/researchers?${p.toString()}`;
+  })();
 
-  const kakenHref = lab.researcherNumber
-    ? `https://kaken.nii.ac.jp/ja/search/?kw=${encodeURIComponent(lab.researcherNumber)}`
-    : `https://kaken.nii.ac.jp/ja/search/?kw=${encodeURIComponent(nameForSearch)}`;
-  const kakenDirect = !!lab.researcherNumber;
+  // NRID（研究者リゾルバ）— researcherNumber があれば個別ページ、なければフリーワード検索
+  // NRID 個別 URL: https://nrid.nii.ac.jp/ja/nrid/{1000+8桁}/
+  // フリーワード検索は kw=ローマ字名 + 大学名（+ 部局）の AND 結合で対象を 1 人に絞り込む
+  // （絞り込みサイドバーの研究機関/部局フィルタは JS 生成で URL から制御不可のため、
+  //  kw 内に同一情報を含める実装に変更）
+  const nridDirect = !!lab.researcherNumber;
+  const nridHref = (() => {
+    if (nridDirect) {
+      const digits = lab.researcherNumber!.replace(/\D/g, "");
+      const full = digits.startsWith("1000") ? digits : `1000${digits}`;
+      return `https://nrid.nii.ac.jp/ja/nrid/${full}/`;
+    }
+    const kwParts = [
+      lab.professorName, // ローマ字氏名
+      lab.university.name, // 研究機関
+      lab.department ?? "", // 部局（未設定なら空）
+    ].filter((s) => s.length > 0);
+    return `https://nrid.nii.ac.jp/ja/search/?kw=${encodeURIComponent(
+      kwParts.join(" "),
+    )}`;
+  })();
+
+  // 日本の研究.com（research-er.jp）— サイト内の researcher 検索
+  const japaneseResearchHref = `https://research-er.jp/search?keyword=${encodeURIComponent(
+    lab.professorName,
+  )}`;
 
   const officialSearchHref = `https://www.google.com/search?q=${encodeURIComponent(
-    [nameForSearch, lab.university.name, "研究室"].join(" "),
+    [lab.university.name, lab.professorName].join(" "),
   )}`;
   const officialDirect = !!lab.officialUrl;
 
+  // Google Scholar 著者検索（名前のみ）
+  const googleScholarHref = `https://scholar.google.com/citations?view_op=search_authors&mauthors=${encodeURIComponent(
+    lab.professorName,
+  )}`;
+
+  // ORCID 直接リンク（id があれば）/ 検索（なければ氏名で）
+  const orcidDirect = !!lab.orcid;
+  const orcidHref = orcidDirect
+    ? `https://orcid.org/${lab.orcid!.replace(/.*\//, "")}`
+    : `https://orcid.org/orcid-search/search?searchQuery=${encodeURIComponent(
+        lab.professorName,
+      )}`;
+
   return (
-    <main className="min-h-screen p-8 max-w-4xl mx-auto">
+    <main className="min-h-screen p-8 max-w-5xl mx-auto">
       <nav className="mb-4 text-sm space-x-2">
-        <Link href="/" className="text-blue-600 hover:underline">
+        <Link href="/" className="text-blue-600 dark:text-blue-400 hover:underline">
           トップ
         </Link>
-        <span className="text-gray-400">/</span>
-        <Link href="/labs" className="text-blue-600 hover:underline">
+        <span className="text-gray-400 dark:text-gray-600">/</span>
+        <Link href="/labs" className="text-blue-600 dark:text-blue-400 hover:underline">
           研究室一覧
         </Link>
       </nav>
 
-      <header className="mb-8 pb-4 border-b">
-        <h1 className="text-3xl font-bold mb-2">{displayName} 研究室</h1>
-        <div className="text-gray-700">
-          主宰者：{displayName}
-          {lab.professorNameJa && (
-            <span className="text-gray-500 ml-2 text-sm">
-              ({lab.professorName})
-            </span>
-          )}
+      <header className="mb-8 pb-4 border-b border-gray-200 dark:border-gray-800">
+        <div className="flex items-start justify-between gap-4">
+          <h1 className="text-3xl font-bold mb-2 text-gray-900 dark:text-gray-100">
+            {lab.professorName} 研究室
+          </h1>
+          <FavoriteButton labId={lab.id} size="md" />
         </div>
-        <div className="text-gray-600 text-sm mt-1">
+        <div className="text-gray-700 dark:text-gray-300">
+          主宰者：{lab.professorName}
+        </div>
+        <div className="text-gray-600 dark:text-gray-400 text-sm mt-1">
           {lab.university.name}
           {lab.department ? `・${lab.department}` : ""}
         </div>
       </header>
 
       <section className="mb-8">
-        <h2 className="text-xl font-semibold mb-3">
+        <h2 className="text-xl font-semibold mb-3 text-gray-900 dark:text-gray-100">
           AI 要約（直近 5 年の研究成果）
         </h2>
-        <div className="p-4 bg-yellow-50 border border-yellow-200 rounded text-sm text-gray-700 whitespace-pre-wrap">
+        <div className="p-4 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-900/50 rounded text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
           {lab.aiSummary ?? (
-            <span className="italic text-gray-500">
-              要約はまだ生成されていません。
+            <span className="italic text-gray-500 dark:text-gray-400">
+              {worksWithAbstract.length === 0
+                ? "出版社方針により論文要旨が公開されていないため、AI 要約は提供していません。論文タイトルと DOI のみ下にてご案内します。"
+                : "要約はまだ生成されていません。"}
             </span>
           )}
         </div>
-        <p className="text-xs text-gray-500 mt-2">
-          ※ AI（Claude）が論文情報をもとに自動生成。誤りを含む可能性があるため、正確性は研究室公式情報でご確認ください。
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+          ※ AI（Claude）が、公開されている論文要旨から研究の問い・手法・主要な発見を事実情報として抽出・再構成して自動生成しています。誤りを含む可能性があるため、正確性は研究室公式情報でご確認ください。
         </p>
       </section>
 
+      {/* 外部リンク（左） + 関連研究室（右）— モバイルでは縦並び */}
+      <section className="mb-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <h2 className="text-xl font-semibold mb-3 text-gray-900 dark:text-gray-100">
+            外部リンク
+          </h2>
+          <ul className="space-y-1.5 text-sm">
+            <li>
+              {officialDirect ? (
+                <a
+                  href={lab.officialUrl!}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  公式サイト
+                </a>
+              ) : (
+                <a
+                  href={officialSearchHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  公式サイト（Google 検索）
+                </a>
+              )}
+            </li>
+            <li>
+              <a
+                href={researchmapHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                researchmap{!researchmapDirect && "（詳細検索）"}
+              </a>
+            </li>
+            <li>
+              <a
+                href={nridHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                NRID（KAKEN 研究者）{!nridDirect && "（検索）"}
+              </a>
+            </li>
+            <li>
+              <a
+                href={japaneseResearchHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                日本の研究.com（検索）
+              </a>
+            </li>
+            <li>
+              <a
+                href={googleScholarHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                Google Scholar（検索）
+              </a>
+            </li>
+            {lab.openalexAuthorId && (
+              <li>
+                <a
+                  href={lab.openalexAuthorId}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  OpenAlex（著者ページ）
+                </a>
+              </li>
+            )}
+            <li>
+              <a
+                href={orcidHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                ORCID{!orcidDirect && "（検索）"}
+              </a>
+            </li>
+          </ul>
+        </div>
+
+        <div>
+          <RelatedLabsSection
+            labs={relatedLabs}
+            title="関連研究室"
+            emptyMessage="共通タグ・同分野のラボが見つかりませんでした（タグ未生成の可能性）。"
+            fieldLabelByCode={FIELD_LABEL_BY_CODE}
+          />
+        </div>
+      </section>
+
+      {/* 研究成果（直近 10 件 + 続き） */}
       <section className="mb-8">
-        <h2 className="text-xl font-semibold mb-3">
+        <h2 className="text-xl font-semibold mb-3 text-gray-900 dark:text-gray-100">
           研究成果（{lab.works.length} 件）
         </h2>
         {lab.works.length === 0 ? (
-          <p className="text-gray-500 text-sm">まだデータがありません。</p>
+          <p className="text-gray-500 dark:text-gray-400 text-sm">
+            まだデータがありません。
+          </p>
         ) : (
-          <ul className="space-y-2">
-            {lab.works.map((w) => (
-              <li key={w.id} className="p-3 border rounded">
-                <div className="text-sm">
-                  {w.year ? `[${w.year}] ` : ""}
-                  {w.sourceUrl ? (
-                    <a
-                      href={w.sourceUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline"
-                    >
-                      {w.titleJa ?? w.title}
-                    </a>
-                  ) : (
-                    (w.titleJa ?? w.title)
-                  )}
-                </div>
-                {w.titleJa && (
-                  <div className="text-xs text-gray-500 mt-1 italic">
-                    {w.title}
+          <>
+            <ul className="space-y-2">
+              {lab.works.slice(0, 10).map((w) => (
+                <li
+                  key={w.id}
+                  className="p-3 border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 rounded"
+                >
+                  <div className="text-sm text-gray-800 dark:text-gray-200">
+                    {w.year ? `[${w.year}] ` : ""}
+                    {w.sourceUrl ? (
+                      <a
+                        href={w.sourceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        {w.titleJa ?? w.title}
+                      </a>
+                    ) : (
+                      (w.titleJa ?? w.title)
+                    )}
                   </div>
-                )}
-                {w.doi && (
-                  <div className="text-xs text-gray-500 mt-1">DOI: {w.doi}</div>
-                )}
-              </li>
-            ))}
-          </ul>
+                  {w.titleJa && (
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 italic">
+                      {w.title}
+                    </div>
+                  )}
+                  {w.doi && (
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      DOI: {w.doi}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+            {lab.works.length > 10 && (
+              <details className="mt-3 group">
+                <summary className="cursor-pointer inline-block text-sm font-medium text-blue-700 dark:text-blue-300 hover:underline list-none px-3 py-2 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded">
+                  <span className="group-open:hidden">
+                    続きを表示（残り {lab.works.length - 10} 件）
+                  </span>
+                  <span className="hidden group-open:inline">
+                    閉じる
+                  </span>
+                </summary>
+                <ul className="space-y-2 mt-3">
+                  {lab.works.slice(10).map((w) => (
+                    <li
+                      key={w.id}
+                      className="p-3 border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 rounded"
+                    >
+                      <div className="text-sm text-gray-800 dark:text-gray-200">
+                        {w.year ? `[${w.year}] ` : ""}
+                        {w.sourceUrl ? (
+                          <a
+                            href={w.sourceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 dark:text-blue-400 hover:underline"
+                          >
+                            {w.titleJa ?? w.title}
+                          </a>
+                        ) : (
+                          (w.titleJa ?? w.title)
+                        )}
+                      </div>
+                      {w.titleJa && (
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 italic">
+                          {w.title}
+                        </div>
+                      )}
+                      {w.doi && (
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          DOI: {w.doi}
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </>
         )}
       </section>
 
       <section className="mb-8">
-        <h2 className="text-xl font-semibold mb-3">
+        <h2 className="text-xl font-semibold mb-3 text-gray-900 dark:text-gray-100">
           科研費（{lab.grants.length} 件）
         </h2>
         {lab.grants.length === 0 ? (
-          <p className="text-gray-500 text-sm">
+          <p className="text-gray-500 dark:text-gray-400 text-sm">
             まだデータがありません（KAKEN 取り込み後に表示）。
           </p>
         ) : (
           <ul className="space-y-2">
             {lab.grants.map((g) => (
-              <li key={g.id} className="p-3 border rounded text-sm">
-                <div className="font-medium">{g.title}</div>
-                <div className="text-xs text-gray-500 mt-1">
+              <li key={g.id} className="p-3 border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 rounded text-sm">
+                <div className="font-medium text-gray-800 dark:text-gray-200">{g.title}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                   {g.category}
                   {g.amount ? `・${g.amount.toLocaleString()} 円` : ""}
                 </div>
@@ -194,11 +392,11 @@ export default async function LabDetailPage({ params }: PageProps) {
       </section>
 
       <section className="mb-8">
-        <h2 className="text-xl font-semibold mb-3">
+        <h2 className="text-xl font-semibold mb-3 text-gray-900 dark:text-gray-100">
           所属学会・役職（{lab.labSocieties.length} 件）
         </h2>
         {lab.labSocieties.length === 0 ? (
-          <p className="text-gray-500 text-sm">
+          <p className="text-gray-500 dark:text-gray-400 text-sm">
             まだデータがありません（学会データ連携後に表示）。
           </p>
         ) : (
@@ -213,102 +411,18 @@ export default async function LabDetailPage({ params }: PageProps) {
         )}
       </section>
 
-      <section>
-        <h2 className="text-xl font-semibold mb-3">外部リンク</h2>
-        <ul className="space-y-1.5 text-sm">
-          {/* 公式サイト */}
-          <li className="flex items-baseline gap-2">
-            {officialDirect ? (
-              <a
-                href={lab.officialUrl!}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:underline"
-              >
-                公式サイト
-              </a>
-            ) : (
-              <>
-                <a
-                  href={officialSearchHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:underline"
-                >
-                  公式サイトを検索
-                </a>
-                <span className="text-xs text-gray-500">
-                  （Google で「氏名 + 大学 + 研究室」を検索）
-                </span>
-              </>
-            )}
-          </li>
-
-          {/* researchmap */}
-          <li className="flex items-baseline gap-2">
-            <a
-              href={researchmapHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 hover:underline"
-            >
-              researchmap
-              {!researchmapDirect && "（検索）"}
-            </a>
-            {!researchmapDirect && (
-              <span className="text-xs text-gray-500">
-                ※プロフィール ID 未取得。氏名で検索結果を開きます
-              </span>
-            )}
-          </li>
-
-          {/* KAKEN */}
-          <li className="flex items-baseline gap-2">
-            <a
-              href={kakenHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 hover:underline"
-            >
-              KAKEN（科研費）
-              {!kakenDirect && "（検索）"}
-            </a>
-            {!kakenDirect && (
-              <span className="text-xs text-gray-500">
-                ※研究者番号未取得。氏名で検索します
-              </span>
-            )}
-          </li>
-
-          {/* OpenAlex */}
-          {lab.openalexAuthorId && (
-            <li>
-              <a
-                href={lab.openalexAuthorId}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:underline"
-              >
-                OpenAlex（著者ページ）
-              </a>
-            </li>
-          )}
-
-          {/* ORCID */}
-          {lab.orcid && (
-            <li>
-              <a
-                href={`https://orcid.org/${lab.orcid.replace(/.*\//, "")}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:underline"
-              >
-                ORCID
-              </a>
-            </li>
-          )}
-        </ul>
-      </section>
+      <footer className="mt-10 pt-6 border-t border-gray-200 dark:border-gray-800 text-sm text-gray-600 dark:text-gray-400">
+        <p>
+          掲載情報に誤りがある、または研究室として掲載を希望されない場合は{" "}
+          <Link
+            href={`/labs/${lab.id}/report`}
+            className="text-blue-600 hover:underline"
+          >
+            こちらから削除・訂正のご依頼
+          </Link>
+          を承ります。
+        </p>
+      </footer>
     </main>
   );
 }

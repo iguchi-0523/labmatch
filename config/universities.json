@@ -1,0 +1,579 @@
+{
+  "version": 1,
+  "lastUpdated": "2026-05-25",
+  "schema": {
+    "categories": [
+      "national",
+      "public",
+      "private"
+    ],
+    "phases": {
+      "1": "MVP：UTokyo 単独で戦略1を通す",
+      "2": "旧帝大 + 早慶 — 既存 ingest-openalex.ts の対象範囲",
+      "3": "主要国立（東京科学大、筑波、神戸、広島、千葉ほか）",
+      "4": "主要公立",
+      "5": "主要私立（科研費上位30 / 医歯薬保有 / 理工博士後期保有 のいずれか）"
+    },
+    "_note": "240大学（国立86+公立98+主要私立~55）を本ファイルで管理する設計。Phase 1 から段階的に enabled を切り替えていく。openalexInstitutionId が null の場合、ingest スクリプトは nameEn による institution search で動的解決する。"
+  },
+  "fields": {
+    "life": {
+      "ids": [
+        11,
+        13,
+        24,
+        28,
+        30
+      ],
+      "labels": {
+        "11": "Agricultural and Biological Sciences",
+        "13": "Biochemistry, Genetics and Molecular Biology",
+        "24": "Immunology and Microbiology",
+        "28": "Neuroscience",
+        "30": "Pharmacology, Toxicology and Pharmaceutics"
+      }
+    },
+    "health": {
+      "ids": [
+        27,
+        36
+      ],
+      "labels": {
+        "27": "Medicine",
+        "36": "Health Professions"
+      }
+    }
+  },
+  "universities": [
+    {
+      "key": "u-tokyo",
+      "name": "東京大学",
+      "nameEn": "The University of Tokyo",
+      "category": "national",
+      "prefecture": "東京都",
+      "phase": 1,
+      "enabled": true,
+      "openalexInstitutionId": "I74801974",
+      "worksCount": 502522
+    },
+    {
+      "key": "kyoto-u",
+      "name": "京都大学",
+      "nameEn": "Kyoto University",
+      "category": "national",
+      "prefecture": "京都府",
+      "phase": 2,
+      "enabled": false,
+      "openalexInstitutionId": "I22299242",
+      "worksCount": 354556
+    },
+    {
+      "key": "osaka-u",
+      "name": "大阪大学",
+      "nameEn": "The University of Osaka",
+      "category": "national",
+      "prefecture": "大阪府",
+      "phase": 2,
+      "enabled": false,
+      "openalexInstitutionId": "I98285908",
+      "worksCount": 286756
+    },
+    {
+      "key": "tohoku-u",
+      "name": "東北大学",
+      "nameEn": "Tohoku University",
+      "category": "national",
+      "prefecture": "宮城県",
+      "phase": 2,
+      "enabled": false,
+      "openalexInstitutionId": "I201537933",
+      "worksCount": 275375
+    },
+    {
+      "key": "nagoya-u",
+      "name": "名古屋大学",
+      "nameEn": "Nagoya University",
+      "category": "national",
+      "prefecture": "愛知県",
+      "phase": 2,
+      "enabled": false,
+      "openalexInstitutionId": "I60134161",
+      "worksCount": 265614
+    },
+    {
+      "key": "kyushu-u",
+      "name": "九州大学",
+      "nameEn": "Kyushu University",
+      "category": "national",
+      "prefecture": "福岡県",
+      "phase": 2,
+      "enabled": false,
+      "openalexInstitutionId": "I135598925",
+      "worksCount": 225379
+    },
+    {
+      "key": "hokkaido-u",
+      "name": "北海道大学",
+      "nameEn": "Hokkaido University",
+      "category": "national",
+      "prefecture": "北海道",
+      "phase": 2,
+      "enabled": false,
+      "openalexInstitutionId": "I205349734",
+      "worksCount": 252756
+    },
+    {
+      "key": "waseda-u",
+      "name": "早稲田大学",
+      "nameEn": "Waseda University",
+      "category": "private",
+      "prefecture": "東京都",
+      "phase": 2,
+      "enabled": false,
+      "openalexInstitutionId": "I150744194",
+      "worksCount": 86133
+    },
+    {
+      "key": "keio-u",
+      "name": "慶應義塾大学",
+      "nameEn": "Keio University",
+      "category": "private",
+      "prefecture": "東京都",
+      "phase": 2,
+      "enabled": false,
+      "openalexInstitutionId": "I203951103",
+      "worksCount": 118478
+    },
+    {
+      "key": "titech",
+      "name": "東京工業大学",
+      "nameEn": "Tokyo Institute of Technology",
+      "category": "national",
+      "prefecture": "東京都",
+      "phase": 3,
+      "enabled": false,
+      "openalexInstitutionId": "I114531698",
+      "note": "2024年10月に東京医科歯科大学と統合し東京科学大学に。旧法人の論文はこの ID 配下に残る。",
+      "worksCount": 164133
+    },
+    {
+      "key": "tmdu",
+      "name": "東京医科歯科大学",
+      "nameEn": "Tokyo Medical and Dental University",
+      "category": "national",
+      "prefecture": "東京都",
+      "phase": 3,
+      "enabled": false,
+      "openalexInstitutionId": "I125602781",
+      "note": "2024年10月に東京工業大学と統合し東京科学大学に。旧法人の論文はこの ID 配下に残る。",
+      "worksCount": 55622
+    },
+    {
+      "key": "tsukuba-u",
+      "name": "筑波大学",
+      "nameEn": "University of Tsukuba",
+      "category": "national",
+      "prefecture": "茨城県",
+      "phase": 3,
+      "enabled": false,
+      "openalexInstitutionId": "I146399215",
+      "worksCount": 134544
+    },
+    {
+      "key": "hit-u",
+      "name": "一橋大学",
+      "nameEn": "Hitotsubashi University",
+      "category": "national",
+      "prefecture": "東京都",
+      "phase": 3,
+      "enabled": false,
+      "openalexInstitutionId": "I111428342",
+      "worksCount": 8294
+    },
+    {
+      "key": "kobe-u",
+      "name": "神戸大学",
+      "nameEn": "Kobe University",
+      "category": "national",
+      "prefecture": "兵庫県",
+      "phase": 3,
+      "enabled": false,
+      "openalexInstitutionId": "I65837984",
+      "worksCount": 91702
+    },
+    {
+      "key": "hiroshima-u",
+      "name": "広島大学",
+      "nameEn": "Hiroshima University",
+      "category": "national",
+      "prefecture": "広島県",
+      "phase": 3,
+      "enabled": false,
+      "openalexInstitutionId": "I113306721",
+      "worksCount": 111938
+    },
+    {
+      "key": "chiba-u",
+      "name": "千葉大学",
+      "nameEn": "Chiba University",
+      "category": "national",
+      "prefecture": "千葉県",
+      "phase": 3,
+      "enabled": false,
+      "openalexInstitutionId": "I159385669",
+      "worksCount": 84863
+    },
+    {
+      "key": "ynu",
+      "name": "横浜国立大学",
+      "nameEn": "Yokohama National University",
+      "category": "national",
+      "prefecture": "神奈川県",
+      "phase": 3,
+      "enabled": false,
+      "openalexInstitutionId": "I180203408",
+      "worksCount": 33939
+    },
+    {
+      "key": "tmu",
+      "name": "東京都立大学",
+      "nameEn": "Tokyo Metropolitan University",
+      "category": "public",
+      "prefecture": "東京都",
+      "phase": 4,
+      "enabled": false,
+      "openalexInstitutionId": "I69740276",
+      "worksCount": 50597
+    },
+    {
+      "key": "ycu",
+      "name": "横浜市立大学",
+      "nameEn": "Yokohama City University",
+      "category": "public",
+      "prefecture": "神奈川県",
+      "phase": 4,
+      "enabled": false,
+      "openalexInstitutionId": "I89630735",
+      "worksCount": 40298
+    },
+    {
+      "key": "omu",
+      "name": "大阪公立大学",
+      "nameEn": "Osaka Metropolitan University",
+      "category": "public",
+      "prefecture": "大阪府",
+      "phase": 4,
+      "enabled": false,
+      "openalexInstitutionId": "I4387152983",
+      "worksCount": 8854
+    },
+    {
+      "key": "tus",
+      "name": "東京理科大学",
+      "nameEn": "Tokyo University of Science",
+      "category": "private",
+      "prefecture": "東京都",
+      "phase": 5,
+      "enabled": false,
+      "openalexInstitutionId": "I161296585",
+      "worksCount": 90837
+    },
+    {
+      "key": "juntendo-u",
+      "name": "順天堂大学",
+      "nameEn": "Juntendo University",
+      "category": "private",
+      "prefecture": "東京都",
+      "phase": 5,
+      "enabled": false,
+      "openalexInstitutionId": "I34077901",
+      "worksCount": 41537
+    },
+    {
+      "key": "sophia-u",
+      "name": "上智大学",
+      "nameEn": "Sophia University",
+      "category": "private",
+      "prefecture": "東京都",
+      "phase": 5,
+      "enabled": false,
+      "openalexInstitutionId": "I42999171",
+      "worksCount": 13579
+    },
+    {
+      "key": "okayama-u",
+      "name": "岡山大学",
+      "nameEn": "Okayama University",
+      "category": "national",
+      "prefecture": "岡山県",
+      "phase": 6,
+      "enabled": false,
+      "openalexInstitutionId": "I163770644",
+      "worksCount": 85187
+    },
+    {
+      "key": "kanazawa-u",
+      "name": "金沢大学",
+      "nameEn": "Kanazawa University",
+      "category": "national",
+      "prefecture": "石川県",
+      "phase": 6,
+      "enabled": false,
+      "openalexInstitutionId": "I10091056",
+      "worksCount": 67281
+    },
+    {
+      "key": "kumamoto-u",
+      "name": "熊本大学",
+      "nameEn": "Kumamoto University",
+      "category": "national",
+      "prefecture": "熊本県",
+      "phase": 6,
+      "enabled": false,
+      "openalexInstitutionId": "I96036126",
+      "worksCount": 58253
+    },
+    {
+      "key": "niigata-u",
+      "name": "新潟大学",
+      "nameEn": "Niigata University",
+      "category": "national",
+      "prefecture": "新潟県",
+      "phase": 6,
+      "enabled": false,
+      "openalexInstitutionId": "I71395657",
+      "worksCount": 55853
+    },
+    {
+      "key": "nagasaki-u",
+      "name": "長崎大学",
+      "nameEn": "Nagasaki University",
+      "category": "national",
+      "prefecture": "長崎県",
+      "phase": 6,
+      "enabled": false,
+      "openalexInstitutionId": "I43777268",
+      "worksCount": 50870
+    },
+    {
+      "key": "kindai",
+      "name": "近畿大学",
+      "nameEn": "Kindai University",
+      "category": "private",
+      "prefecture": "大阪府",
+      "phase": 6,
+      "enabled": false,
+      "openalexInstitutionId": "I916559398",
+      "worksCount": 49932
+    },
+    {
+      "key": "tuat",
+      "name": "東京農工大学",
+      "nameEn": "Tokyo University of Agriculture and Technology",
+      "category": "national",
+      "prefecture": "東京都",
+      "phase": 6,
+      "enabled": false,
+      "openalexInstitutionId": "I92614990",
+      "worksCount": 38980
+    },
+    {
+      "key": "kitasato-u",
+      "name": "北里大学",
+      "nameEn": "Kitasato University",
+      "category": "private",
+      "prefecture": "東京都",
+      "phase": 6,
+      "enabled": false,
+      "openalexInstitutionId": "I64189623",
+      "worksCount": 36666
+    },
+    {
+      "key": "nitech",
+      "name": "名古屋工業大学",
+      "nameEn": "Nagoya Institute of Technology",
+      "category": "national",
+      "prefecture": "愛知県",
+      "phase": 6,
+      "enabled": false,
+      "openalexInstitutionId": "I197274945",
+      "worksCount": 33863
+    },
+    {
+      "key": "ritsumeikan",
+      "name": "立命館大学",
+      "nameEn": "Ritsumeikan University",
+      "category": "private",
+      "prefecture": "京都府",
+      "phase": 6,
+      "enabled": false,
+      "openalexInstitutionId": "I135768898",
+      "worksCount": 32250
+    },
+    {
+      "key": "jichi-med",
+      "name": "自治医科大学",
+      "nameEn": "Jichi Medical University",
+      "category": "private",
+      "prefecture": "栃木県",
+      "phase": 6,
+      "enabled": false,
+      "openalexInstitutionId": "I146500386",
+      "worksCount": 31466
+    },
+    {
+      "key": "nippon-med",
+      "name": "日本医科大学",
+      "nameEn": "Nippon Medical School",
+      "category": "private",
+      "prefecture": "東京都",
+      "phase": 6,
+      "enabled": false,
+      "openalexInstitutionId": "I80188885",
+      "worksCount": 25757
+    },
+    {
+      "key": "kit-jp",
+      "name": "京都工芸繊維大学",
+      "nameEn": "Kyoto Institute of Technology",
+      "category": "national",
+      "prefecture": "京都府",
+      "phase": 6,
+      "enabled": false,
+      "openalexInstitutionId": "I27429435",
+      "worksCount": 21523
+    },
+    {
+      "key": "hamamatsu-med",
+      "name": "浜松医科大学",
+      "nameEn": "Hamamatsu University School of Medicine",
+      "category": "national",
+      "prefecture": "静岡県",
+      "phase": 6,
+      "enabled": false,
+      "openalexInstitutionId": "I3123035732",
+      "worksCount": 20728
+    },
+    {
+      "key": "doshisha",
+      "name": "同志社大学",
+      "nameEn": "Doshisha University",
+      "category": "private",
+      "prefecture": "京都府",
+      "phase": 6,
+      "enabled": false,
+      "openalexInstitutionId": "I133984924",
+      "worksCount": 20208
+    },
+    {
+      "key": "kansai-u",
+      "name": "関西大学",
+      "nameEn": "Kansai University",
+      "category": "private",
+      "prefecture": "大阪府",
+      "phase": 6,
+      "enabled": false,
+      "openalexInstitutionId": "I56624758",
+      "worksCount": 18962
+    },
+    {
+      "key": "meiji-u",
+      "name": "明治大学",
+      "nameEn": "Meiji University",
+      "category": "private",
+      "prefecture": "東京都",
+      "phase": 6,
+      "enabled": false,
+      "openalexInstitutionId": "I16656306",
+      "worksCount": 18086
+    },
+    {
+      "key": "kansai-med",
+      "name": "関西医科大学",
+      "nameEn": "Kansai Medical University",
+      "category": "private",
+      "prefecture": "大阪府",
+      "phase": 6,
+      "enabled": false,
+      "openalexInstitutionId": "I126884977",
+      "worksCount": 17657
+    },
+    {
+      "key": "shiga-med",
+      "name": "滋賀医科大学",
+      "nameEn": "Shiga University of Medical Science",
+      "category": "national",
+      "prefecture": "滋賀県",
+      "phase": 6,
+      "enabled": false,
+      "openalexInstitutionId": "I160046202",
+      "worksCount": 16160
+    },
+    {
+      "key": "hosei-u",
+      "name": "法政大学",
+      "nameEn": "Hosei University",
+      "category": "private",
+      "prefecture": "東京都",
+      "phase": 6,
+      "enabled": false,
+      "openalexInstitutionId": "I204291657",
+      "worksCount": 16032
+    },
+    {
+      "key": "chuo-u",
+      "name": "中央大学",
+      "nameEn": "Chuo University",
+      "category": "private",
+      "prefecture": "東京都",
+      "phase": 6,
+      "enabled": false,
+      "openalexInstitutionId": "I96679780",
+      "worksCount": 15959
+    },
+    {
+      "key": "kwansei-gakuin",
+      "name": "関西学院大学",
+      "nameEn": "Kwansei Gakuin University",
+      "category": "private",
+      "prefecture": "兵庫県",
+      "phase": 6,
+      "enabled": false,
+      "openalexInstitutionId": "I206011266",
+      "worksCount": 12678
+    },
+    {
+      "key": "aoyama-gakuin",
+      "name": "青山学院大学",
+      "nameEn": "Aoyama Gakuin University",
+      "category": "private",
+      "prefecture": "東京都",
+      "phase": 6,
+      "enabled": false,
+      "openalexInstitutionId": "I131231118",
+      "worksCount": 11693
+    },
+    {
+      "key": "rikkyo-u",
+      "name": "立教大学",
+      "nameEn": "Rikkyo University",
+      "category": "private",
+      "prefecture": "東京都",
+      "phase": 6,
+      "enabled": false,
+      "openalexInstitutionId": "I133557312",
+      "worksCount": 9996
+    },
+    {
+      "key": "asahikawa-med",
+      "name": "旭川医科大学",
+      "nameEn": "Asahikawa Medical University",
+      "category": "national",
+      "prefecture": "北海道",
+      "phase": 6,
+      "enabled": false,
+      "openalexInstitutionId": "I147809708",
+      "worksCount": 6438
+    }
+  ]
+}

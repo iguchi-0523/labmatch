@@ -29,7 +29,6 @@ model Lab {
   universityId         Int       @map("university_id")
   name                 String
   professorName        String    @map("professor_name")
-  professorNameJa      String?   @map("professor_name_ja")
   department           String?
   officialUrl          String?   @map("official_url")
   researcherNumber     String?   @unique @map("researcher_number") // e-Rad ID
@@ -41,36 +40,43 @@ model Lab {
   aiSummary            String?   @map("ai_summary")
   aiSummaryGeneratedAt DateTime? @map("ai_summary_generated_at")
   aiSummarySourceHash  String?   @map("ai_summary_source_hash")
+  tags                 String[]  @default([])
+  tagsGeneratedAt      DateTime? @map("tags_generated_at")
+  deletedAt            DateTime? @map("deleted_at")
   createdAt            DateTime  @default(now()) @map("created_at")
   updatedAt            DateTime  @updatedAt      @map("updated_at")
 
-  university   University   @relation(fields: [universityId], references: [id])
+  university   University    @relation(fields: [universityId], references: [id])
   works        Work[]
   grants       Grant[]
   labFields    LabField[]
   labSocieties LabSociety[]
+  labReports   LabReport[]
 
   @@index([universityId])
+  @@index([deletedAt])
   @@map("labs")
 }
 
 // 研究成果（論文・著書など）
 model Work {
-  id        Int      @id @default(autoincrement())
-  labId     Int      @map("lab_id")
-  title     String
-  titleJa   String?  @map("title_ja")
-  abstract  String?
-  year      Int?
-  doi       String?
-  sourceUrl String?  @map("source_url")
-  type      String?  // "paper" | "book" | "other"
-  createdAt DateTime @default(now()) @map("created_at")
+  id          Int      @id @default(autoincrement())
+  labId       Int      @map("lab_id")
+  title       String
+  titleJa     String?  @map("title_ja")
+  abstract    String?
+  hasAbstract Boolean  @default(false) @map("has_abstract")
+  year        Int?
+  doi         String?
+  sourceUrl   String?  @map("source_url")
+  type        String?  // "paper" | "book" | "other"
+  createdAt   DateTime @default(now()) @map("created_at")
 
   lab Lab @relation(fields: [labId], references: [id], onDelete: Cascade)
 
   @@index([labId])
   @@index([year])
+  @@index([hasAbstract])
   @@map("works")
 }
 
@@ -140,4 +146,27 @@ model LabSociety {
 
   @@id([labId, societyId])
   @@map("lab_societies")
+}
+
+// 研究室の掲載に関する削除・修正依頼
+// SLA: 72時間以内に一次返信。*.ac.jp ドメインからの依頼を優先処理。
+model LabReport {
+  id                  Int       @id @default(autoincrement())
+  labId               Int       @map("lab_id")
+  reporterEmail       String    @map("reporter_email")
+  reporterEmailDomain String    @map("reporter_email_domain") // 優先処理判定用（"u-tokyo.ac.jp" 等）
+  reporterAffiliation String?   @map("reporter_affiliation")  // 自由記入
+  reason              String    // 依頼内容（自由記入）
+  reportType          String    @default("removal") @map("report_type") // "removal" | "correction"
+  status              String    @default("pending") // "pending" | "reviewing" | "removed" | "kept" | "corrected"
+  resolutionNote      String?   @map("resolution_note") // スタッフ対応メモ
+  createdAt           DateTime  @default(now()) @map("created_at")
+  resolvedAt          DateTime? @map("resolved_at")
+
+  lab Lab @relation(fields: [labId], references: [id], onDelete: Cascade)
+
+  @@index([labId])
+  @@index([status])
+  @@index([reporterEmailDomain])
+  @@map("lab_reports")
 }

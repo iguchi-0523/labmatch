@@ -3,125 +3,95 @@ import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-const QUICK_KEYWORDS = ["細胞", "遺伝子", "がん", "神経", "免疫", "ゲノム"];
-
 export default async function Home() {
   const [labCount, workCount, uniCount] = await Promise.all([
-    prisma.lab.count(),
+    prisma.lab.count({ where: { deletedAt: null } }),
     prisma.work.count(),
     prisma.university.count(),
   ]);
 
   return (
-    <>
-      {/* Hero */}
-      <section className="bg-gradient-to-b from-blue-50 to-white border-b">
-        <div className="max-w-4xl mx-auto px-6 py-16 text-center">
-          <h1 className="text-5xl font-bold mb-4 text-gray-900">ラボマッチ</h1>
-          <p className="text-lg text-gray-700 mb-2">
-            大学の研究室を、分野・大学・キーワードから簡単に検索。
-          </p>
-          <p className="text-sm text-gray-500 mb-8">
-            進学先・研究室配属を考える学生のためのサイト
-          </p>
+    <section className="min-h-[calc(100vh-3rem)] flex items-center justify-center px-6 py-10 bg-gradient-to-b from-blue-50 to-white dark:from-gray-900 dark:to-gray-950">
+      <div className="max-w-3xl w-full text-center">
+        <h1 className="text-5xl md:text-6xl font-bold mb-3 text-gray-900 dark:text-gray-100 tracking-tight">
+          ラボマッチ
+        </h1>
+        <p className="text-lg text-gray-700 dark:text-gray-300 mb-1">
+          大学の研究室を、分野・大学・キーワードから検索
+        </p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-8">
+          進学先・研究室配属を考える学生のためのサイト
+        </p>
 
-          <form
-            action="/labs"
-            method="get"
-            className="max-w-xl mx-auto flex gap-2"
-          >
-            <input
-              type="text"
-              name="q"
-              placeholder="キーワード（例: 細胞、神経、ゲノム...）"
-              className="flex-1 px-4 py-3 border rounded text-base bg-white"
-            />
-            <button
-              type="submit"
-              className="px-6 py-3 bg-blue-600 text-white rounded hover:bg-blue-700 font-medium"
-            >
-              検索
-            </button>
-          </form>
-
-          <div className="mt-4 flex flex-wrap gap-2 justify-center">
-            {QUICK_KEYWORDS.map((kw) => (
-              <Link
-                key={kw}
-                href={`/labs?q=${encodeURIComponent(kw)}`}
-                className="text-sm px-3 py-1 bg-white border rounded-full hover:bg-blue-50 hover:border-blue-300 text-gray-700"
-              >
-                {kw}
-              </Link>
-            ))}
-          </div>
-
-          <div className="mt-12 grid grid-cols-3 max-w-md mx-auto gap-4 text-center">
-            <div>
-              <div className="text-2xl font-bold text-gray-900">{labCount}</div>
-              <div className="text-xs text-gray-500">研究室</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-gray-900">
-                {workCount.toLocaleString()}
-              </div>
-              <div className="text-xs text-gray-500">論文</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-gray-900">{uniCount}</div>
-              <div className="text-xs text-gray-500">大学</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Features */}
-      <section className="max-w-4xl mx-auto px-6 py-12">
-        <h2 className="text-2xl font-semibold mb-6 text-center">できること</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="p-5 border rounded">
-            <h3 className="font-semibold mb-2">分野・大学で絞り込み</h3>
-            <p className="text-sm text-gray-600">
-              生命科学の 5 分野と 9 大学（旧帝大 + 早慶）から、興味のある研究室を見つけられます。
-            </p>
-          </div>
-          <div className="p-5 border rounded">
-            <h3 className="font-semibold mb-2">AI による要約</h3>
-            <p className="text-sm text-gray-600">
-              直近 5 年の論文から、各研究室の研究内容を AI が平易な日本語でまとめます。
-            </p>
-          </div>
-          <div className="p-5 border rounded">
-            <h3 className="font-semibold mb-2">外部データへ即アクセス</h3>
-            <p className="text-sm text-gray-600">
-              researchmap・KAKEN・OpenAlex など、各研究室の公式情報源にすぐ移動できます。
-            </p>
-          </div>
-        </div>
-
-        <div className="text-center mt-8">
+        {/* CTA — 一画面の中心、ファーストビューから即クリック可能 */}
+        <div className="mb-10">
           <Link
             href="/labs"
-            className="inline-block px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-lg"
+            className="inline-flex items-center gap-2 px-10 py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-lg shadow-md hover:shadow-lg transition-all"
           >
-            研究室を検索する →
+            研究室を検索する
+            <span aria-hidden="true">→</span>
           </Link>
         </div>
-      </section>
 
-      {/* MVP notice */}
-      <section className="bg-yellow-50 border-y border-yellow-200">
-        <div className="max-w-4xl mx-auto px-6 py-6 text-sm text-gray-700">
-          <p className="font-semibold mb-1">MVP 開発中</p>
-          <p>
-            現在は生命科学系の主要 9 大学（旧帝大 + 早慶）から約 80 研究室を収録しています。今後、対象分野・対象大学を順次拡大していきます。各情報は自動収集と AI 要約に基づくため、誤りを含む可能性があります（詳しくは{" "}
-            <Link href="/about" className="text-blue-600 hover:underline">
-              このサイトについて
-            </Link>
-            ）。
-          </p>
+        {/* Stats — 横一列で簡潔 */}
+        <div className="grid grid-cols-3 max-w-md mx-auto gap-2 mb-8">
+          {[
+            { value: labCount.toLocaleString(), label: "研究室" },
+            { value: workCount.toLocaleString(), label: "論文" },
+            { value: String(uniCount), label: "大学" },
+          ].map((s) => (
+            <div key={s.label}>
+              <div className="text-2xl font-bold text-gray-900 dark:text-gray-100 tabular-nums">
+                {s.value}
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                {s.label}
+              </div>
+            </div>
+          ))}
         </div>
-      </section>
-    </>
+
+        {/* Features — 1 行アイコン付きで省スペース */}
+        <ul className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8 text-sm">
+          <li className="p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded">
+            <div className="font-semibold text-gray-900 dark:text-gray-100 mb-0.5">
+              分野・大学で絞り込み
+            </div>
+            <p className="text-xs text-gray-600 dark:text-gray-400 leading-snug">
+              階層キーワード × 国公私の大学区分 × 8 地方の都道府県
+            </p>
+          </li>
+          <li className="p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded">
+            <div className="font-semibold text-gray-900 dark:text-gray-100 mb-0.5">
+              AI による要約
+            </div>
+            <p className="text-xs text-gray-600 dark:text-gray-400 leading-snug">
+              直近 5 年の論文を Claude が平易な日本語に再構成
+            </p>
+          </li>
+          <li className="p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded">
+            <div className="font-semibold text-gray-900 dark:text-gray-100 mb-0.5">
+              外部リンクで深掘り
+            </div>
+            <p className="text-xs text-gray-600 dark:text-gray-400 leading-snug">
+              researchmap / NRID / Google Scholar / ORCID へワンクリック
+            </p>
+          </li>
+        </ul>
+
+        {/* MVP 注記 — 1 行で控えめに */}
+        <p className="text-xs text-gray-500 dark:text-gray-500">
+          MVP 開発中。情報は自動収集と AI 生成に基づくため誤りを含む可能性があります（
+          <Link
+            href="/about"
+            className="text-blue-600 dark:text-blue-400 hover:underline"
+          >
+            このサイトについて
+          </Link>
+          ）。
+        </p>
+      </div>
+    </section>
   );
 }

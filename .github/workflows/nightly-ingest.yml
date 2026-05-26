@@ -1,0 +1,70 @@
+name: Nightly Ingest
+
+# 毎日 0:00 JST (= 15:00 UTC 前日) に起動。約 5-6 時間で 1 大学を ingest。
+# 完了後に AI 要約生成 + タグ backfill まで実行。
+#
+# 手動トリガー（workflow_dispatch）でも実行可能。FORCE_KEY 入力で大学指定可。
+
+on:
+  schedule:
+    - cron: "0 15 * * *" # 15:00 UTC = 00:00 JST
+  workflow_dispatch:
+    inputs:
+      force_key:
+        description: "特定大学を強制指定（例: kyoto-u）。空なら auto-pick"
+        required: false
+        type: string
+
+# 同時に複数の ingest が走らないようにする
+concurrency:
+  group: nightly-ingest
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350 # 5h50m（GH Actions free tier 単一 job 上限 6h 直前）
+    permissions:
+      contents: read
+
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      INGEST_NEXT_FORCE_KEY: ${{ inputs.force_key }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Show current DB state
+        run: npx tsx scripts/db-status.ts
+
+      - name: Select & ingest next university
+        run: npx tsx scripts/ingest-next.ts
+
+      - name: Generate AI summaries for new labs
+        # 残り時間が少ない場合はスキップしたいが、現状はベストエフォートで実行
+        # generate-summaries.ts は失敗しても workflow 全体は止めない
+        continue-on-error: true
+        run: npx tsx scripts/generate-summaries.ts
+
+      - name: Backfill tags
+        continue-on-error: true
+        run: npx tsx scripts/backfill-tags.ts --only-empty
+
+      - name: Final DB state
+        if: always()
+        run: npx tsx scripts/db-status.ts

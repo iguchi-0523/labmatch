@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Footer } from "@/components/Footer";
+import { getInlineScript } from "@/lib/theme-client";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -31,8 +32,13 @@ export default function RootLayout({
     <html
       lang="ja"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col">
+      <head>
+        {/* React hydrate 前に html.dark を反映して flash を防ぐ */}
+        <script dangerouslySetInnerHTML={{ __html: getInlineScript() }} />
+      </head>
+      <body className="min-h-full flex flex-col bg-white text-gray-900 dark:bg-gray-950 dark:text-gray-100">
         <div className="flex-1">{children}</div>
         <Footer />
       </body>

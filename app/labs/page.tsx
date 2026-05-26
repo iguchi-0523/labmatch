@@ -1,6 +1,14 @@
 import Link from "next/link";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { FavoriteButton } from "@/components/FavoriteButton";
+import { FavoritesFilter } from "@/components/FavoritesFilter";
+import { KeywordModeToggle } from "@/components/KeywordModeToggle";
+import { KeywordTreeFilter } from "@/components/KeywordTreeFilter";
+import { PrefectureTreeFilter } from "@/components/PrefectureTreeFilter";
+import { TagChip } from "@/components/TagChip";
+import { UniversityTreeFilter } from "@/components/UniversityTreeFilter";
+import { FIELD_LABEL_BY_CODE } from "@/lib/field-labels";
 
 export const dynamic = "force-dynamic";
 
@@ -14,19 +22,6 @@ const SORT_OPTIONS = [
   { value: "new", label: "新着順" },
 ] as const;
 
-// OpenAlex の field id (ASJC ベース) → 日本語ラベル
-const FIELD_OPTIONS = [
-  { code: "11", label: "農学・生物科学" },
-  { code: "13", label: "生化学・分子生物学・遺伝学" },
-  { code: "24", label: "免疫学・微生物学" },
-  { code: "28", label: "神経科学" },
-  { code: "30", label: "薬学・薬理学" },
-] as const;
-
-const FIELD_LABEL_BY_CODE: Record<string, string> = Object.fromEntries(
-  FIELD_OPTIONS.map((f) => [f.code, f.label]),
-);
-
 const MIN_WORKS_OPTIONS = [
   { value: "0", label: "指定なし" },
   { value: "5", label: "5 件以上" },
@@ -35,53 +30,51 @@ const MIN_WORKS_OPTIONS = [
   { value: "20", label: "20 件以上" },
 ] as const;
 
-// テーマ別キーワードツリー
-const KEYWORD_GROUPS: { label: string; keywords: string[] }[] = [
-  {
-    label: "細胞・分子",
-    keywords: [
-      "細胞", "遺伝子", "タンパク質", "DNA", "RNA",
-      "ゲノム", "受容体", "キナーゼ", "ミトコンドリア",
-    ],
-  },
-  {
-    label: "神経科学",
-    keywords: ["神経", "脳", "シナプス"],
-  },
-  {
-    label: "医学・疾患",
-    keywords: [
-      "がん", "腫瘍", "免疫", "抗体",
-      "アルツハイマー", "パーキンソン", "糖尿病",
-    ],
-  },
-  {
-    label: "発生・モデル生物",
-    keywords: ["発生", "幹細胞", "アポトーシス", "マウス"],
-  },
-  {
-    label: "技術",
-    keywords: ["CRISPR"],
-  },
-];
-
 interface PageProps {
   searchParams: Promise<{
     q?: string;
     kw?: string | string[];
     mode?: string;
     u?: string | string[];
-    p?: string;
+    p?: string | string[];
     sort?: string;
     f?: string | string[];
     min?: string;
+    fav?: string;
+    favIds?: string | string[];
+    page?: string;
   }>;
 }
+
+const PER_PAGE = 50;
 
 function asArray(v: string | string[] | undefined): string[] {
   if (Array.isArray(v)) return v;
   if (v === undefined) return [];
   return [v];
+}
+
+/**
+ * ページネーション用の表示ページ番号リストを生成。
+ * 例: current=6, total=50 → [1, "gap", 4, 5, 6, 7, 8, "gap", 50]
+ */
+function buildPageList(
+  current: number,
+  total: number,
+  windowSize: number = 2,
+): (number | "gap")[] {
+  if (total <= 1) return [];
+  const pages = new Set<number>([1, total]);
+  for (let i = current - windowSize; i <= current + windowSize; i++) {
+    if (i >= 1 && i <= total) pages.add(i);
+  }
+  const sorted = [...pages].sort((a, b) => a - b);
+  const result: (number | "gap")[] = [];
+  for (let i = 0; i < sorted.length; i++) {
+    if (i > 0 && sorted[i] - sorted[i - 1] > 1) result.push("gap");
+    result.push(sorted[i]);
+  }
+  return result;
 }
 
 function buildKeywordCondition(kw: string): Prisma.LabWhereInput {
@@ -117,26 +110,55 @@ export default async function LabsPage({ searchParams }: PageProps) {
   const universityIds = asArray(params.u)
     .map((s) => Number(s))
     .filter((n) => Number.isInteger(n) && n > 0);
-  const prefecture = params.p?.trim() ?? "";
+  const prefectures = asArray(params.p)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
   const sort = params.sort ?? "works";
   const fieldCodes = asArray(params.f).filter((c) => /^\d+$/.test(c));
   const minWorks = Math.max(0, Number(params.min) || 0);
+  const onlyFavorites = params.fav === "1";
+  const favIds = onlyFavorites
+    ? asArray(params.favIds)
+        .map((s) => Number(s))
+        .filter((n) => Number.isInteger(n) && n > 0)
+        .slice(0, 200)
+    : [];
+  const currentPage = Math.max(1, Number(params.page) || 1);
 
-  const toggleKeywordHref = (kw: string) => {
+  // 現状の filter 状態を URL パラメータに復元するヘルパー
+  // pageOverride を渡せば page だけ差し替えたリンクが作れる
+  const buildFilterParams = (opts: {
+    keywords?: string[];
+    page?: number;
+  } = {}): URLSearchParams => {
     const u = new URLSearchParams();
+    const kws = opts.keywords ?? selectedKeywords;
+    for (const k of kws) u.append("kw", k);
+    if (mode !== "and") u.set("mode", mode);
     for (const id of universityIds) u.append("u", String(id));
-    if (prefecture) u.set("p", prefecture);
+    for (const p of prefectures) u.append("p", p);
     for (const code of fieldCodes) u.append("f", code);
     if (minWorks > 0) u.set("min", String(minWorks));
     if (sort !== "works") u.set("sort", sort);
-    if (mode !== "and") u.set("mode", mode);
+    if (onlyFavorites) {
+      u.set("fav", "1");
+      for (const id of favIds) u.append("favIds", String(id));
+    }
+    const pageTo = opts.page ?? currentPage;
+    if (pageTo > 1) u.set("page", String(pageTo));
+    return u;
+  };
 
+  const pageHref = (target: number): string =>
+    `/labs?${buildFilterParams({ page: target }).toString()}`;
+
+  const toggleKeywordHref = (kw: string) => {
     const isSelected = selectedKeywords.includes(kw);
     const next = isSelected
       ? selectedKeywords.filter((k) => k !== kw)
       : [...selectedKeywords, kw];
-    for (const k of next) u.append("kw", k);
-    return `/labs?${u.toString()}`;
+    // キーワード切替はページを 1 に戻す
+    return `/labs?${buildFilterParams({ keywords: next, page: 1 }).toString()}`;
   };
 
   const conditions: Prisma.LabWhereInput[] = [];
@@ -151,14 +173,18 @@ export default async function LabsPage({ searchParams }: PageProps) {
   if (universityIds.length > 0) {
     conditions.push({ universityId: { in: universityIds } });
   }
-  if (prefecture) {
-    conditions.push({ university: { prefecture } });
+  if (prefectures.length > 0) {
+    conditions.push({ university: { prefecture: { in: prefectures } } });
   }
   if (fieldCodes.length > 0) {
     conditions.push({ primaryFieldCode: { in: fieldCodes } });
   }
-  const where: Prisma.LabWhereInput =
-    conditions.length > 0 ? { AND: conditions } : {};
+  if (onlyFavorites) {
+    // お気に入り 0 件で fav=1 が来た場合は何も該当しない
+    conditions.push({ id: favIds.length > 0 ? { in: favIds } : { in: [-1] } });
+  }
+  conditions.push({ deletedAt: null });
+  const where: Prisma.LabWhereInput = { AND: conditions };
 
   const orderBy: Prisma.LabOrderByWithRelationInput =
     sort === "name"
@@ -167,9 +193,11 @@ export default async function LabsPage({ searchParams }: PageProps) {
         ? { createdAt: "desc" }
         : { works: { _count: "desc" } };
 
-  const [totalCount, allMatches, universities, prefectureRows] =
+  const skip = (currentPage - 1) * PER_PAGE;
+  const [totalCount, matchingCount, pageMatches, universities] =
     await Promise.all([
-      prisma.lab.count(),
+      prisma.lab.count({ where: { deletedAt: null } }),
+      prisma.lab.count({ where }),
       prisma.lab.findMany({
         where,
         include: {
@@ -177,38 +205,32 @@ export default async function LabsPage({ searchParams }: PageProps) {
           _count: { select: { works: true } },
         },
         orderBy,
-        take: 200,
+        take: PER_PAGE,
+        skip,
       }),
       prisma.university.findMany({ orderBy: { name: "asc" } }),
-      prisma.university.findMany({
-        where: { prefecture: { not: null } },
-        distinct: ["prefecture"],
-        select: { prefecture: true },
-        orderBy: { prefecture: "asc" },
-      }),
     ]);
 
-  const filtered =
+  // minWorks は Prisma で直接フィルタできないので取得後にページ内除外
+  // （結果としてページ内表示数が 50 未満になることがあるが、件数表示にその旨を補足）
+  // tags は ingest/backfill 時に事前計算済み（Lab.tags 列）を読むだけ
+  const labs =
     minWorks > 0
-      ? allMatches.filter((l) => l._count.works >= minWorks)
-      : allMatches;
-  const matchCount = filtered.length;
-  const labs = filtered.slice(0, 100);
+      ? pageMatches.filter((l) => l._count.works >= minWorks)
+      : pageMatches;
+  const matchCount = matchingCount;
+  const totalPages = Math.max(1, Math.ceil(matchingCount / PER_PAGE));
+  const pageStart = (currentPage - 1) * PER_PAGE + 1;
+  const pageEnd = Math.min(currentPage * PER_PAGE, matchingCount);
+  const minWorksExcludedOnPage = pageMatches.length - labs.length;
 
   const hasFilters =
     selectedKeywords.length > 0 ||
     universityIds.length > 0 ||
-    prefecture !== "" ||
+    prefectures.length > 0 ||
     fieldCodes.length > 0 ||
-    minWorks > 0;
-
-  // Tailwind の動的クラスは効かないので、明示的にスタイルを切り替える
-  const chipBase =
-    "inline-block text-sm leading-none px-2.5 py-1.5 rounded-full transition-colors";
-  const chipUnselected =
-    "bg-white border border-gray-300 text-gray-800 hover:bg-blue-50 hover:border-blue-400";
-  const chipSelected =
-    "bg-blue-600 border border-blue-600 text-white hover:bg-blue-700";
+    minWorks > 0 ||
+    onlyFavorites;
 
   return (
     <main className="min-h-screen px-6 py-10 max-w-7xl mx-auto">
@@ -217,8 +239,8 @@ export default async function LabsPage({ searchParams }: PageProps) {
           ← トップ
         </Link>
       </nav>
-      <h1 className="text-3xl font-bold mb-2 text-gray-900">研究室検索</h1>
-      <p className="text-sm text-gray-600 mb-8">
+      <h1 className="text-3xl font-bold mb-2 text-gray-900 dark:text-gray-100">研究室検索</h1>
+      <p className="text-sm text-gray-600 dark:text-gray-400 mb-8">
         キーワード・分野・大学などで絞り込み。複数キーワードは AND / OR で組合せ可。
       </p>
 
@@ -228,12 +250,12 @@ export default async function LabsPage({ searchParams }: PageProps) {
           <form
             method="get"
             action="/labs"
-            className="space-y-6 p-5 bg-gray-50 rounded-lg border border-gray-200"
+            className="space-y-6 p-5 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800"
           >
             {/* キーワード入力 */}
             <div>
               <label
-                className="block text-sm font-semibold text-gray-900 mb-2"
+                className="block text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2"
                 htmlFor="q-input"
               >
                 キーワード検索
@@ -244,61 +266,37 @@ export default async function LabsPage({ searchParams }: PageProps) {
                 name="q"
                 defaultValue=""
                 placeholder="例: ゲノム編集"
-                className="w-full px-3 py-2 border border-gray-300 rounded text-sm bg-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
-              <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 leading-relaxed">
                 研究室名・主宰者・AI 要約・論文タイトル（日本語/英語）を対象。
                 入力して「絞り込む」で追加されます。
               </p>
 
               {/* 選択中のキーワード */}
               {selectedKeywords.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mt-3 p-2.5 bg-blue-50 border border-blue-200 rounded">
-                  <span className="text-xs text-blue-900 self-center mr-1 font-medium">
+                <div className="flex flex-wrap gap-1.5 mt-3 p-2.5 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded">
+                  <span className="text-xs text-blue-900 dark:text-blue-200 self-center mr-1 font-medium">
                     選択中（{selectedKeywords.length}件）:
                   </span>
                   {selectedKeywords.map((kw) => (
                     <Link
                       key={kw}
                       href={toggleKeywordHref(kw)}
-                      className="text-xs px-2 py-0.5 bg-white border border-blue-300 rounded text-blue-900 hover:bg-blue-100 inline-flex items-center gap-1"
+                      className="text-xs px-2 py-0.5 bg-white dark:bg-gray-800 border border-blue-300 dark:border-blue-700 rounded text-blue-900 dark:text-blue-200 hover:bg-blue-100 dark:hover:bg-blue-900/50 inline-flex items-center gap-1"
                       title="クリックで削除"
                     >
-                      {kw} <span className="text-blue-500">×</span>
+                      {kw} <span className="text-blue-500 dark:text-blue-400">×</span>
                     </Link>
                   ))}
                 </div>
               )}
 
-              {/* AND / OR */}
-              {selectedKeywords.length >= 2 && (
-                <fieldset className="mt-3">
-                  <legend className="text-xs text-gray-600 mb-1">
-                    複数キーワードの組合せ
-                  </legend>
-                  <div className="flex gap-3 text-sm">
-                    <label className="inline-flex items-center cursor-pointer">
-                      <input
-                        type="radio"
-                        name="mode"
-                        value="and"
-                        defaultChecked={mode === "and"}
-                        className="mr-1"
-                      />
-                      AND（すべて含む）
-                    </label>
-                    <label className="inline-flex items-center cursor-pointer">
-                      <input
-                        type="radio"
-                        name="mode"
-                        value="or"
-                        defaultChecked={mode === "or"}
-                        className="mr-1"
-                      />
-                      OR（いずれか）
-                    </label>
-                  </div>
-                </fieldset>
+              {/* AND / OR（常時表示、即時 URL 反映） */}
+              <KeywordModeToggle />
+              {/* form submit でもモードを保持できるよう hidden */}
+              {mode === "or" && (
+                <input type="hidden" name="mode" value="or" />
               )}
 
               {/* 既存の kw を hidden で持ち越し */}
@@ -307,104 +305,91 @@ export default async function LabsPage({ searchParams }: PageProps) {
                 .map((k) => (
                   <input key={k} type="hidden" name="kw" value={k} />
                 ))}
+              {/* お気に入りフィルタ状態の hidden 持ち越し */}
+              {onlyFavorites && (
+                <>
+                  <input type="hidden" name="fav" value="1" />
+                  {favIds.map((id) => (
+                    <input
+                      key={id}
+                      type="hidden"
+                      name="favIds"
+                      value={String(id)}
+                    />
+                  ))}
+                </>
+              )}
+            </div>
+
+            {/* お気に入り絞り込み */}
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900 mb-2">
+                お気に入り
+              </h3>
+              <FavoritesFilter />
             </div>
 
             {/* キーワードツリー */}
             <div>
               <h3 className="text-sm font-semibold text-gray-900 mb-2">
-                よく検索されるキーワード
+                キーワード階層
               </h3>
-              <div className="space-y-1.5">
-                {KEYWORD_GROUPS.map((group) => (
-                  <details
-                    key={group.label}
-                    open
-                    className="group bg-white border border-gray-200 rounded"
-                  >
-                    <summary className="cursor-pointer list-none px-3 py-2 text-sm font-medium text-gray-800 hover:bg-gray-50 flex items-center justify-between">
-                      <span>{group.label}</span>
-                      <span className="text-gray-400 text-xs group-open:rotate-90 transition-transform">
-                        ▶
-                      </span>
-                    </summary>
-                    <div className="flex flex-wrap gap-1.5 px-3 pb-3 pt-1 border-t border-gray-100">
-                      {group.keywords.map((kw) => {
-                        const selected = selectedKeywords.includes(kw);
-                        return (
-                          <Link
-                            key={kw}
-                            href={toggleKeywordHref(kw)}
-                            className={`${chipBase} ${
-                              selected ? chipSelected : chipUnselected
-                            }`}
-                          >
-                            {kw}
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  </details>
-                ))}
-              </div>
+              <p className="text-xs text-gray-500 mb-2 leading-relaxed">
+                上位を選ぶと配下のキーワードを一括選択。
+                ▶ で開閉、☑/◧/☐ で選択状態を表示。
+              </p>
+              <KeywordTreeFilter />
             </div>
 
-            {/* 分野 */}
-            <details open className="group">
-              <summary className="cursor-pointer list-none text-sm font-semibold text-gray-900 mb-2 flex items-center justify-between">
-                <span>分野</span>
-                <span className="text-gray-400 text-xs group-open:rotate-90 transition-transform">
-                  ▶
-                </span>
-              </summary>
-              <div className="space-y-1.5 mt-2 pl-1">
-                {FIELD_OPTIONS.map((f) => (
-                  <label
-                    key={f.code}
-                    className="flex items-center text-sm cursor-pointer text-gray-800"
-                  >
-                    <input
-                      type="checkbox"
-                      name="f"
-                      value={f.code}
-                      defaultChecked={fieldCodes.includes(f.code)}
-                      className="mr-2"
-                    />
-                    {f.label}
-                  </label>
-                ))}
-              </div>
-            </details>
+            {/* 分野フィルタはキーワード階層（大分類）と統合された。
+                form submit 時に URL の f= を維持するため hidden input でパススルー */}
+            {fieldCodes.map((code) => (
+              <input key={code} type="hidden" name="f" value={code} />
+            ))}
 
-            {/* 大学 */}
+            {/* 大学：国立 / 公立 / 私学 → 個別大学 */}
             <details open className="group">
-              <summary className="cursor-pointer list-none text-sm font-semibold text-gray-900 mb-2 flex items-center justify-between">
+              <summary className="cursor-pointer list-none text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2 flex items-center justify-between">
                 <span>大学</span>
                 <span className="text-gray-400 text-xs group-open:rotate-90 transition-transform">
                   ▶
                 </span>
               </summary>
-              <div className="space-y-1.5 mt-2 pl-1 max-h-64 overflow-y-auto">
-                {universities.map((u) => (
-                  <label
-                    key={u.id}
-                    className="flex items-center text-sm cursor-pointer text-gray-800"
-                  >
-                    <input
-                      type="checkbox"
-                      name="u"
-                      value={u.id}
-                      defaultChecked={universityIds.includes(u.id)}
-                      className="mr-2"
-                    />
-                    {u.name}
-                  </label>
-                ))}
-              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 leading-relaxed">
+                区分（国立／公立／私学）をクリックでその区分の大学を一括選択。
+                ▶ で開閉。
+              </p>
+              <UniversityTreeFilter
+                universities={universities.map((u) => ({ id: u.id, name: u.name }))}
+              />
+              {/* form submit でも選択を保持するための hidden */}
+              {universityIds.map((id) => (
+                <input key={id} type="hidden" name="u" value={String(id)} />
+              ))}
             </details>
 
-            {/* 都道府県・件数・並び替え */}
+            {/* 地方・都道府県 */}
             <details open className="group">
-              <summary className="cursor-pointer list-none text-sm font-semibold text-gray-900 mb-2 flex items-center justify-between">
+              <summary className="cursor-pointer list-none text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2 flex items-center justify-between">
+                <span>地方・都道府県</span>
+                <span className="text-gray-400 text-xs group-open:rotate-90 transition-transform">
+                  ▶
+                </span>
+              </summary>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 leading-relaxed">
+                地方をクリックするとその地方の県を一括選択。
+                ▶ で展開、▼ で閉じる。
+              </p>
+              <PrefectureTreeFilter />
+              {/* form submit でも選択を保持するための hidden */}
+              {prefectures.map((p) => (
+                <input key={p} type="hidden" name="p" value={p} />
+              ))}
+            </details>
+
+            {/* 件数・並び替え */}
+            <details open className="group">
+              <summary className="cursor-pointer list-none text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2 flex items-center justify-between">
                 <span>その他の条件</span>
                 <span className="text-gray-400 text-xs group-open:rotate-90 transition-transform">
                   ▶
@@ -412,30 +397,13 @@ export default async function LabsPage({ searchParams }: PageProps) {
               </summary>
               <div className="space-y-3 mt-2 pl-1">
                 <div>
-                  <label className="block text-xs text-gray-700 mb-1">
-                    都道府県
-                  </label>
-                  <select
-                    name="p"
-                    defaultValue={prefecture}
-                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm bg-white"
-                  >
-                    <option value="">すべて</option>
-                    {prefectureRows.map((r) => (
-                      <option key={r.prefecture} value={r.prefecture ?? ""}>
-                        {r.prefecture}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-700 mb-1">
+                  <label className="block text-xs text-gray-700 dark:text-gray-300 mb-1">
                     論文数（下限）
                   </label>
                   <select
                     name="min"
                     defaultValue={String(minWorks)}
-                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm bg-white"
+                    className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-700 rounded text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                   >
                     {MIN_WORKS_OPTIONS.map((o) => (
                       <option key={o.value} value={o.value}>
@@ -445,13 +413,13 @@ export default async function LabsPage({ searchParams }: PageProps) {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-700 mb-1">
+                  <label className="block text-xs text-gray-700 dark:text-gray-300 mb-1">
                     並び替え
                   </label>
                   <select
                     name="sort"
                     defaultValue={sort}
-                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm bg-white"
+                    className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-700 rounded text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                   >
                     {SORT_OPTIONS.map((o) => (
                       <option key={o.value} value={o.value}>
@@ -473,7 +441,7 @@ export default async function LabsPage({ searchParams }: PageProps) {
               </button>
               <Link
                 href="/labs"
-                className="px-3 py-2.5 border border-gray-300 rounded text-sm text-gray-700 hover:bg-gray-100"
+                className="px-3 py-2.5 border border-gray-300 dark:border-gray-700 rounded text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
               >
                 リセット
               </Link>
@@ -483,15 +451,15 @@ export default async function LabsPage({ searchParams }: PageProps) {
 
         {/* 結果 */}
         <section>
-          <div className="mb-4 text-sm text-gray-700 flex items-baseline gap-2">
+          <div className="mb-4 text-sm text-gray-700 dark:text-gray-300 flex items-baseline gap-2">
             {hasFilters ? (
               <>
-                <span className="font-semibold text-lg text-gray-900">
+                <span className="font-semibold text-lg text-gray-900 dark:text-gray-100">
                   {matchCount}
                 </span>
                 <span>件ヒット（全 {totalCount} 件中）</span>
                 {selectedKeywords.length >= 2 && (
-                  <span className="text-xs px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">
+                  <span className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-gray-600 dark:text-gray-400">
                     {mode === "and" ? "AND" : "OR"}
                   </span>
                 )}
@@ -499,22 +467,36 @@ export default async function LabsPage({ searchParams }: PageProps) {
             ) : (
               <>
                 <span>全</span>
-                <span className="font-semibold text-lg text-gray-900">
+                <span className="font-semibold text-lg text-gray-900 dark:text-gray-100">
                   {totalCount}
                 </span>
                 <span>件</span>
               </>
             )}
-            {labs.length < matchCount && (
-              <span className="text-xs text-gray-500 ml-auto">
-                上位 {labs.length} 件を表示
+            {matchCount > 0 && (
+              <span className="text-xs text-gray-500 dark:text-gray-500 ml-auto">
+                {pageStart}〜{pageEnd} 件目を表示
+                {totalPages > 1 && ` / ${totalPages} ページ`}
+                {minWorksExcludedOnPage > 0 &&
+                  `（minWorks フィルタによりこのページから ${minWorksExcludedOnPage} 件除外）`}
               </span>
             )}
           </div>
 
-          {labs.length === 0 ? (
-            <p className="text-gray-500 py-12 text-center bg-gray-50 rounded border border-gray-200">
+          {matchCount === 0 ? (
+            <p className="text-gray-500 dark:text-gray-400 py-12 text-center bg-gray-50 dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-800">
               該当する研究室がありません。条件を変えてみてください。
+            </p>
+          ) : labs.length === 0 ? (
+            <p className="text-gray-500 dark:text-gray-400 py-12 text-center bg-gray-50 dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-800">
+              このページの研究室はすべて minWorks フィルタで除外されました。
+              <br />
+              <Link
+                href={pageHref(1)}
+                className="text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                1 ページ目に戻る
+              </Link>
             </p>
           ) : (
             <ul className="space-y-3">
@@ -523,46 +505,130 @@ export default async function LabsPage({ searchParams }: PageProps) {
                   ? (FIELD_LABEL_BY_CODE[lab.primaryFieldCode] ??
                     lab.primaryFieldName)
                   : null;
-                const displayName = lab.professorNameJa ?? lab.professorName;
                 return (
-                  <li key={lab.id}>
-                    <Link
-                      href={`/labs/${lab.id}`}
-                      className="block p-4 bg-white border border-gray-200 rounded-lg hover:border-blue-400 hover:shadow-sm transition-all"
-                    >
+                  <li
+                    key={lab.id}
+                    className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-sm transition-all overflow-hidden"
+                  >
+                    <Link href={`/labs/${lab.id}`} className="block p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <div className="font-semibold text-base text-gray-900 leading-snug">
-                            {displayName} 研究室
+                          <div className="font-semibold text-base text-gray-900 dark:text-gray-100 leading-snug">
+                            {lab.professorName} 研究室
                           </div>
-                          {lab.professorNameJa && (
-                            <div className="text-xs text-gray-500 mt-0.5">
-                              ({lab.professorName})
-                            </div>
-                          )}
-                          <div className="text-sm text-gray-700 mt-1">
+                          <div className="text-sm text-gray-700 dark:text-gray-300 mt-1">
                             {lab.university.name}
                             {lab.department && (
-                              <span className="text-gray-500">
+                              <span className="text-gray-500 dark:text-gray-400">
                                 ・{lab.department}
                               </span>
                             )}
                           </div>
                         </div>
-                        {fieldJp && (
-                          <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded whitespace-nowrap shrink-0 border border-blue-200">
-                            {fieldJp}
-                          </span>
-                        )}
+                        <div className="flex items-start gap-2 shrink-0">
+                          {fieldJp && (
+                            <span className="text-xs px-2 py-0.5 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 rounded whitespace-nowrap border border-blue-200 dark:border-blue-900 self-center">
+                              {fieldJp}
+                            </span>
+                          )}
+                          <FavoriteButton
+                            labId={lab.id}
+                            size="sm"
+                            stopParentLink
+                          />
+                        </div>
                       </div>
-                      <div className="text-xs text-gray-500 mt-2 flex items-center gap-2">
+                      <div className="text-xs text-gray-500 dark:text-gray-500 mt-2 flex items-center gap-2">
                         <span>論文 {lab._count.works} 件</span>
                       </div>
                     </Link>
+                    {lab.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 px-4 pb-3 pt-2 border-t border-gray-100 dark:border-gray-800">
+                        {lab.tags.slice(0, 8).map((tag) => (
+                          <TagChip
+                            key={tag}
+                            tag={tag}
+                            href={toggleKeywordHref(tag)}
+                          />
+                        ))}
+                        {lab.tags.length > 8 && (
+                          <span className="text-[10px] leading-none px-1.5 py-0.5 text-gray-500 dark:text-gray-400 self-center">
+                            +{lab.tags.length - 8}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </li>
                 );
               })}
             </ul>
+          )}
+
+          {totalPages > 1 && (
+            <nav
+              aria-label="ページ送り"
+              className="mt-8 flex items-center justify-center gap-1 flex-wrap text-sm"
+            >
+              {currentPage > 1 ? (
+                <Link
+                  href={pageHref(currentPage - 1)}
+                  className="px-3 py-1.5 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:border-blue-400"
+                  aria-label="前のページ"
+                >
+                  ← 前へ
+                </Link>
+              ) : (
+                <span
+                  className="px-3 py-1.5 border border-gray-200 dark:border-gray-800 rounded text-gray-400 dark:text-gray-600 cursor-not-allowed"
+                  aria-disabled="true"
+                >
+                  ← 前へ
+                </span>
+              )}
+              {buildPageList(currentPage, totalPages).map((p, idx) =>
+                p === "gap" ? (
+                  <span
+                    key={`gap-${idx}`}
+                    className="px-2 text-gray-400 dark:text-gray-600 select-none"
+                    aria-hidden="true"
+                  >
+                    …
+                  </span>
+                ) : p === currentPage ? (
+                  <span
+                    key={p}
+                    className="px-3 py-1.5 border border-blue-600 bg-blue-600 text-white rounded font-semibold min-w-[2.5rem] text-center"
+                    aria-current="page"
+                  >
+                    {p}
+                  </span>
+                ) : (
+                  <Link
+                    key={p}
+                    href={pageHref(p)}
+                    className="px-3 py-1.5 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:border-blue-400 min-w-[2.5rem] text-center"
+                  >
+                    {p}
+                  </Link>
+                ),
+              )}
+              {currentPage < totalPages ? (
+                <Link
+                  href={pageHref(currentPage + 1)}
+                  className="px-3 py-1.5 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:border-blue-400"
+                  aria-label="次のページ"
+                >
+                  次へ →
+                </Link>
+              ) : (
+                <span
+                  className="px-3 py-1.5 border border-gray-200 dark:border-gray-800 rounded text-gray-400 dark:text-gray-600 cursor-not-allowed"
+                  aria-disabled="true"
+                >
+                  次へ →
+                </span>
+              )}
+            </nav>
           )}
         </section>
       </div>

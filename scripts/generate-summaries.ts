@@ -1,25 +1,45 @@
-import "dotenv/config";
+import { config } from "dotenv";
+// シェル環境に空文字で先に export されている変数があっても .env で上書きする
+config({ override: true });
 import { prisma } from "../lib/db";
 import { generateLabSummary } from "../lib/summary";
 
 /**
- * aiSummary が未生成のラボを対象に、Claude Haiku で要約を一括生成して保存する。
- * オンデマンド生成（ページ初回閲覧時に走る）の事前実行版。日本語検索のために
- * 全ラボで要約テキストを用意するのが目的。
+ * aiSummary が未生成のラボを対象に、Claude Haiku で AI 要約を一括生成して保存する。
+ *
+ * 「薄グレー」方針:
+ *   - 要約対象は hasAbstract=true の works のみ（OpenAlex に abstract が残っている＝
+ *     出版社による takedown を受けていない論文のみ）
+ *   - hasAbstract=true の works が 0 件のラボはスキップ（要約せず、タイトル+DOI のみ表示）
  */
+
+const MAX_WORKS_PER_LAB = 25;
 
 async function main() {
   const labs = await prisma.lab.findMany({
-    where: { aiSummary: null },
-    include: { works: { take: 25, orderBy: { year: "desc" } } },
+    where: {
+      aiSummary: null,
+      deletedAt: null,
+      works: { some: { hasAbstract: true } },
+    },
+    include: {
+      works: {
+        where: { hasAbstract: true },
+        take: MAX_WORKS_PER_LAB,
+        orderBy: { year: "desc" },
+      },
+    },
     orderBy: { id: "asc" },
   });
-  console.log(`Generating summaries for ${labs.length} labs`);
+  console.log(
+    `Targets: ${labs.length} labs (with at least 1 hasAbstract=true work)`,
+  );
 
   let done = 0;
+  let failed = 0;
   for (const lab of labs) {
     if (lab.works.length === 0) {
-      console.log(`  ${lab.id} ${lab.name}: SKIP (no works)`);
+      console.log(`  ${lab.id} ${lab.name}: SKIP (no abstract-bearing works)`);
       continue;
     }
     try {
@@ -40,13 +60,14 @@ async function main() {
         `  ${done}/${labs.length} ${lab.name} (${summary.length} chars)`,
       );
     } catch (e) {
+      failed++;
       console.error(
         `  ${lab.name}: ERROR`,
         e instanceof Error ? e.message : e,
       );
     }
   }
-  console.log(`\nFinished. Generated: ${done}/${labs.length}`);
+  console.log(`\nFinished. Generated: ${done}/${labs.length}, failed: ${failed}`);
 }
 
 main()

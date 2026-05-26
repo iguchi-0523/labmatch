@@ -1,0 +1,38 @@
+name: Hourly Monitor (00:00-09:00 JST)
+
+# 0:00-9:00 JST (= 15-23 UTC + 0 UTC) の毎時 00 分に DB 状態をログ出力。
+# nightly-ingest の進捗確認用。
+
+on:
+  schedule:
+    - cron: "0 0,15,16,17,18,19,20,21,22,23 * * *"
+  workflow_dispatch: # 手動でいつでも実行可能
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: DB status snapshot
+        run: npx tsx scripts/db-status.ts
