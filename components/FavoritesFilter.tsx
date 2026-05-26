@@ -53,7 +53,7 @@ export function FavoritesFilter() {
       next.delete("fav");
       next.delete("favIds");
     }
-    router.push(`${pathname}?${next.toString()}`);
+    router.push(`${pathname}?${next.toString()}`, { scroll: false });
   };
 
   const disabled = !enabled && favCount === 0;

@@ -1038,8 +1038,17 @@ export const KEYWORD_TREE: KeywordNode[] = [
 ];
 
 // ============================================================
-// 便利関数（変更なし）
+// 便利関数
 // ============================================================
+
+/**
+ * ノードの「識別子」を返す。
+ * - leaf は `keyword` フィールド
+ * - 中間ノードは `label`（中間ノード自体もタグ／フィルタの対象になる）
+ */
+export function getNodeIdentifier(node: KeywordNode): string {
+  return node.keyword ?? node.label;
+}
 
 /** ノード配下のすべての leaf キーワードを再帰収集 */
 export function collectLeafKeywords(node: KeywordNode): string[] {
@@ -1060,16 +1069,77 @@ export function getAllTreeKeywords(): string[] {
   return [...set];
 }
 
+/**
+ * ツリー全体の識別子（leaf キーワード + 中間ラベル）を集める。
+ * 同名重複は最初の出現を残してスキップ。
+ */
+export function getAllTreeIdentifiers(): {
+  id: string;
+  isLeaf: boolean;
+}[] {
+  const seen = new Set<string>();
+  const out: { id: string; isLeaf: boolean }[] = [];
+  function recurse(node: KeywordNode) {
+    const id = getNodeIdentifier(node);
+    if (!seen.has(id)) {
+      seen.add(id);
+      out.push({ id, isLeaf: !node.children?.length });
+    }
+    for (const c of node.children ?? []) recurse(c);
+  }
+  for (const root of KEYWORD_TREE) recurse(root);
+  return out;
+}
+
+/**
+ * 識別子 → 祖先ラベル配列（ルートに近い順）を返す。
+ * 例: leaf "細胞" → ["生物学", "細胞生物学", "細胞の基本"] のように、
+ * その識別子に至るまでの中間ラベル一覧を集めるのに使う。
+ * マッチした識別子の祖先タグも保存することで、上位階層のフィルタで
+ * 自動的にマッチするようになる。
+ */
+export function buildIdentifierAncestorMap(): Map<string, string[]> {
+  const map = new Map<string, string[]>();
+  function recurse(node: KeywordNode, ancestors: string[]) {
+    const id = getNodeIdentifier(node);
+    // 既出の識別子は最初の出現を尊重（同名ノードが複数あった場合）
+    if (!map.has(id)) map.set(id, [...ancestors]);
+    const isInner = node.children && node.children.length > 0;
+    const nextAncestors = isInner ? [...ancestors, node.label] : ancestors;
+    for (const c of node.children ?? []) recurse(c, nextAncestors);
+  }
+  for (const root of KEYWORD_TREE) recurse(root, []);
+  return map;
+}
+
 export type NodeSelectionState = "none" | "partial" | "all";
 
+/**
+ * ノードの選択状態：
+ *  - "all"      : 自身の識別子が selected
+ *  - "partial"  : 自身は未選択だが、子孫のどれかが selected
+ *  - "none"     : 上記以外
+ *
+ * 以前は「配下の leaf がすべて selected か」で判定していたが、
+ * 上位ノードのクリックを「自身をタグとして選ぶ」操作に変更したため、
+ * 自身の選択状態を直接見るようになった。
+ */
 export function nodeSelectionState(
   node: KeywordNode,
   selected: Set<string>,
 ): NodeSelectionState {
-  const leaves = collectLeafKeywords(node);
-  if (leaves.length === 0) return "none";
-  const hit = leaves.filter((k) => selected.has(k)).length;
-  if (hit === 0) return "none";
-  if (hit === leaves.length) return "all";
-  return "partial";
+  if (selected.has(getNodeIdentifier(node))) return "all";
+  if (hasSelectedDescendant(node, selected)) return "partial";
+  return "none";
+}
+
+function hasSelectedDescendant(
+  node: KeywordNode,
+  selected: Set<string>,
+): boolean {
+  for (const c of node.children ?? []) {
+    if (selected.has(getNodeIdentifier(c))) return true;
+    if (hasSelectedDescendant(c, selected)) return true;
+  }
+  return false;
 }

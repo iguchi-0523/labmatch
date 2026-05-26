@@ -17,7 +17,7 @@ export function TagChip({ tag, href }: Props) {
   const onClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    router.push(href);
+    router.push(href, { scroll: false });
   };
   return (
     <button

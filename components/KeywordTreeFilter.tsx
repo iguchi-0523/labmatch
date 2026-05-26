@@ -5,23 +5,24 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   KEYWORD_TREE,
   type KeywordNode,
-  collectLeafKeywords,
+  getNodeIdentifier,
   nodeSelectionState,
   type NodeSelectionState,
 } from "@/lib/keyword-tree";
 
 /**
- * 現在の選択キーワード集合から、大分類の fieldCodes を集めて返す。
- * 大分類の leaf がすべて選択中のときに、その大分類の fieldCodes を含める。
+ * 現在の選択集合から、大分類自身が選ばれている場合の fieldCodes を集めて返す。
+ *
+ * 旧仕様: 大分類配下の leaf がすべて選択 → fieldCodes 連動
+ * 新仕様: 大分類自身（"生物学" 等）が選択 → fieldCodes 連動
+ * 階層タグの導入により、上位ノードのクリックは「そのラベルをタグとして
+ * 選ぶ」操作に変更されたため、こちらが直感的。
  */
 function computeFieldCodesForSelection(selected: Set<string>): Set<string> {
   const result = new Set<string>();
   for (const top of KEYWORD_TREE) {
     if (!top.fieldCodes || top.fieldCodes.length === 0) continue;
-    const leaves = collectLeafKeywords(top);
-    if (leaves.length === 0) continue;
-    const allSelected = leaves.every((l) => selected.has(l));
-    if (allSelected) {
+    if (selected.has(getNodeIdentifier(top))) {
       for (const code of top.fieldCodes) result.add(code);
     }
   }
@@ -32,8 +33,11 @@ function computeFieldCodesForSelection(selected: Set<string>): Set<string> {
  * キーワード階層ツリーのフィルタ UI。
  *
  * - URL の `kw=...` パラメータが selection の真実
- * - 中間ノードをクリックすると配下の全 leaf を一括 toggle
+ * - クリックすると、そのノード自身の識別子を toggle する
+ *   （leaf は keyword、中間ノードは label。下位の cascade はしない）
  * - 各ノードに expand/collapse 状態（ローカル）と selection 状態（URL 由来）
+ * - AND 絞り込みでも、上位ノードを選べばその階層でマッチするラボがヒットする
+ *   （labs.tags に祖先ラベルも保存されているため）
  */
 
 const INDICATOR: Record<NodeSelectionState, string> = {
@@ -62,7 +66,7 @@ export function KeywordTreeFilter() {
     next.delete("f");
     for (const code of nextFieldCodes) next.append("f", code);
     next.delete("page");
-    router.push(`${pathname}?${next.toString()}`);
+    router.push(`${pathname}?${next.toString()}`, { scroll: false });
   };
 
   return (
@@ -102,13 +106,10 @@ function TreeNodeRow({
   const [open, setOpen] = useState(initiallyOpen || state === "partial");
 
   const handleSelect = () => {
-    const leaves = collectLeafKeywords(node);
+    const own = getNodeIdentifier(node);
     const next = new Set(selectedSet);
-    if (state === "all") {
-      for (const k of leaves) next.delete(k);
-    } else {
-      for (const k of leaves) next.add(k);
-    }
+    if (next.has(own)) next.delete(own);
+    else next.add(own);
     onToggle(next);
   };
 
@@ -147,17 +148,6 @@ function TreeNodeRow({
             {INDICATOR[state]}
           </span>
           <span>{node.label}</span>
-          {!isLeaf && (
-            <span
-              className={`ml-auto text-[10px] ${
-                state === "all"
-                  ? "text-blue-100"
-                  : "text-gray-500 dark:text-gray-400"
-              }`}
-            >
-              {collectLeafKeywords(node).length}
-            </span>
-          )}
         </button>
       </div>
       {!isLeaf && open && (

@@ -1,20 +1,23 @@
 {
   "version": 1,
-  "lastUpdated": "2026-05-25",
+  "lastUpdated": "2026-05-26",
   "schema": {
     "categories": [
       "national",
       "public",
-      "private"
+      "private",
+      "research-institute"
     ],
     "phases": {
       "1": "MVP：UTokyo 単独で戦略1を通す",
       "2": "旧帝大 + 早慶 — 既存 ingest-openalex.ts の対象範囲",
       "3": "主要国立（東京科学大、筑波、神戸、広島、千葉ほか）",
       "4": "主要公立",
-      "5": "主要私立（科研費上位30 / 医歯薬保有 / 理工博士後期保有 のいずれか）"
+      "5": "主要私立（科研費上位30 / 医歯薬保有 / 理工博士後期保有 のいずれか）",
+      "6": "研究力 next 25 校（works_count 6K〜85K）",
+      "8": "公的研究機関（OIST / RIKEN / AIST など、学生を受け入れる）"
     },
-    "_note": "240大学（国立86+公立98+主要私立~55）を本ファイルで管理する設計。Phase 1 から段階的に enabled を切り替えていく。openalexInstitutionId が null の場合、ingest スクリプトは nameEn による institution search で動的解決する。"
+    "_note": "240大学（国立86+公立98+主要私立~55）に加えて、学生を受け入れる主要研究機関を含めて管理する設計。openalexInstitutionId が null の場合、ingest スクリプトは nameEn による institution search で動的解決する。"
   },
   "fields": {
     "life": {
@@ -574,6 +577,215 @@
       "enabled": false,
       "openalexInstitutionId": "I147809708",
       "worksCount": 6438
+    },
+    {
+      "key": "riken",
+      "name": "理化学研究所",
+      "nameEn": "RIKEN",
+      "category": "research-institute",
+      "prefecture": "埼玉県",
+      "phase": 8,
+      "enabled": false,
+      "openalexInstitutionId": "I2802519937",
+      "worksCount": 150000
+    },
+    {
+      "key": "aist",
+      "name": "産業技術総合研究所",
+      "nameEn": "National Institute of Advanced Industrial Science and Technology",
+      "category": "research-institute",
+      "prefecture": "茨城県",
+      "phase": 8,
+      "enabled": false,
+      "openalexInstitutionId": null,
+      "worksCount": 0
+    },
+    {
+      "key": "oist",
+      "name": "沖縄科学技術大学院大学",
+      "nameEn": "Okinawa Institute of Science and Technology Graduate University",
+      "category": "research-institute",
+      "prefecture": "沖縄県",
+      "phase": 8,
+      "enabled": false,
+      "openalexInstitutionId": null,
+      "worksCount": 0
+    },
+    {
+      "key": "nims",
+      "name": "物質・材料研究機構",
+      "nameEn": "National Institute for Materials Science",
+      "category": "research-institute",
+      "prefecture": "茨城県",
+      "phase": 8,
+      "enabled": false,
+      "openalexInstitutionId": null,
+      "worksCount": 0
+    },
+    {
+      "key": "kek",
+      "name": "高エネルギー加速器研究機構",
+      "nameEn": "High Energy Accelerator Research Organization",
+      "category": "research-institute",
+      "prefecture": "茨城県",
+      "phase": 8,
+      "enabled": false,
+      "openalexInstitutionId": null,
+      "worksCount": 0
+    },
+    {
+      "key": "sokendai",
+      "name": "総合研究大学院大学",
+      "nameEn": "The Graduate University for Advanced Studies, SOKENDAI",
+      "category": "research-institute",
+      "prefecture": "神奈川県",
+      "phase": 8,
+      "enabled": false,
+      "openalexInstitutionId": null,
+      "worksCount": 0
+    },
+    {
+      "key": "jamstec",
+      "name": "海洋研究開発機構",
+      "nameEn": "Japan Agency for Marine-Earth Science and Technology",
+      "category": "research-institute",
+      "prefecture": "神奈川県",
+      "phase": 8,
+      "enabled": false,
+      "openalexInstitutionId": null,
+      "worksCount": 0
+    },
+    {
+      "key": "nies",
+      "name": "国立環境研究所",
+      "nameEn": "National Institute for Environmental Studies",
+      "category": "research-institute",
+      "prefecture": "茨城県",
+      "phase": 8,
+      "enabled": false,
+      "openalexInstitutionId": null,
+      "worksCount": 0
+    },
+    {
+      "key": "jaxa",
+      "name": "宇宙航空研究開発機構",
+      "nameEn": "Japan Aerospace Exploration Agency",
+      "category": "research-institute",
+      "prefecture": "東京都",
+      "phase": 8,
+      "enabled": false,
+      "openalexInstitutionId": null,
+      "worksCount": 0
+    },
+    {
+      "key": "niid",
+      "name": "国立感染症研究所",
+      "nameEn": "National Institute of Infectious Diseases",
+      "category": "research-institute",
+      "prefecture": "東京都",
+      "phase": 8,
+      "enabled": false,
+      "openalexInstitutionId": null,
+      "worksCount": 0
+    },
+    {
+      "key": "qst",
+      "name": "量子科学技術研究開発機構",
+      "nameEn": "National Institutes for Quantum Science and Technology",
+      "category": "research-institute",
+      "prefecture": "千葉県",
+      "phase": 8,
+      "enabled": false,
+      "openalexInstitutionId": null,
+      "worksCount": 0
+    },
+    {
+      "key": "nict",
+      "name": "情報通信研究機構",
+      "nameEn": "National Institute of Information and Communications Technology",
+      "category": "research-institute",
+      "prefecture": "東京都",
+      "phase": 8,
+      "enabled": false,
+      "openalexInstitutionId": null,
+      "worksCount": 0
+    },
+    {
+      "key": "naro",
+      "name": "農業・食品産業技術総合研究機構",
+      "nameEn": "National Agriculture and Food Research Organization",
+      "category": "research-institute",
+      "prefecture": "茨城県",
+      "phase": 8,
+      "enabled": false,
+      "openalexInstitutionId": null,
+      "worksCount": 0
+    },
+    {
+      "key": "nibiohn",
+      "name": "医薬基盤・健康・栄養研究所",
+      "nameEn": "National Institutes of Biomedical Innovation, Health and Nutrition",
+      "category": "research-institute",
+      "prefecture": "大阪府",
+      "phase": 8,
+      "enabled": false,
+      "openalexInstitutionId": null,
+      "worksCount": 0
+    },
+    {
+      "key": "ncc",
+      "name": "国立がん研究センター",
+      "nameEn": "National Cancer Center Japan",
+      "category": "research-institute",
+      "prefecture": "東京都",
+      "phase": 8,
+      "enabled": false,
+      "openalexInstitutionId": null,
+      "worksCount": 0
+    },
+    {
+      "key": "ncnp",
+      "name": "国立精神・神経医療研究センター",
+      "nameEn": "National Center of Neurology and Psychiatry",
+      "category": "research-institute",
+      "prefecture": "東京都",
+      "phase": 8,
+      "enabled": false,
+      "openalexInstitutionId": null,
+      "worksCount": 0
+    },
+    {
+      "key": "nig",
+      "name": "国立遺伝学研究所",
+      "nameEn": "National Institute of Genetics",
+      "category": "research-institute",
+      "prefecture": "静岡県",
+      "phase": 8,
+      "enabled": false,
+      "openalexInstitutionId": null,
+      "worksCount": 0
+    },
+    {
+      "key": "nii",
+      "name": "国立情報学研究所",
+      "nameEn": "National Institute of Informatics",
+      "category": "research-institute",
+      "prefecture": "東京都",
+      "phase": 8,
+      "enabled": false,
+      "openalexInstitutionId": null,
+      "worksCount": 0
+    },
+    {
+      "key": "naoj",
+      "name": "国立天文台",
+      "nameEn": "National Astronomical Observatory of Japan",
+      "category": "research-institute",
+      "prefecture": "東京都",
+      "phase": 8,
+      "enabled": false,
+      "openalexInstitutionId": null,
+      "worksCount": 0
     }
   ]
 }

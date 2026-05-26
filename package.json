@@ -12,6 +12,8 @@
     "ingest:utokyo-life": "tsx scripts/ingest-utokyo-life.ts",
     "ingest:next": "tsx scripts/ingest-next.ts",
     "backfill:tags": "tsx scripts/backfill-tags.ts",
+    "backfill:departments": "tsx scripts/backfill-departments.ts",
+    "generate:summaries": "tsx scripts/generate-summaries.ts",
     "db:status": "tsx scripts/db-status.ts",
     "ingest:kaken": "tsx scripts/ingest-kaken.ts",
     "postinstall": "prisma generate"

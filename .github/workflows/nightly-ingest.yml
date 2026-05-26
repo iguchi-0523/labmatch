@@ -1,13 +1,24 @@
-name: Nightly Ingest
+name: Recurring Ingest (every 6h)
 
-# 毎日 0:00 JST (= 15:00 UTC 前日) に起動。約 5-6 時間で 1 大学を ingest。
+# 6 時間おきに 1 大学/機関を ingest。1 校あたり約 5-6 時間。
 # 完了後に AI 要約生成 + タグ backfill まで実行。
+#
+# JST スケジュール（UTC + 9）:
+#   - 00:00 UTC = 09:00 JST
+#   - 06:00 UTC = 15:00 JST
+#   - 12:00 UTC = 21:00 JST
+#   - 18:00 UTC = 03:00 JST
+#
+# 完走後（config の全大学・研究機関が DB labs >= 50 を満たす）は
+# `ingest-next.ts` が "All configured universities are already ingested." で
+# 早期終了するので、cron を放置しても無駄リソースは数十秒程度のみ。
+# 完走後に頻度を下げたいときは cron を `0 15 * * *` に戻すこと（00:00 JST 1 本）。
 #
 # 手動トリガー（workflow_dispatch）でも実行可能。FORCE_KEY 入力で大学指定可。
 
 on:
   schedule:
-    - cron: "0 15 * * *" # 15:00 UTC = 00:00 JST
+    - cron: "0 0,6,12,18 * * *"
   workflow_dispatch:
     inputs:
       force_key:
@@ -16,8 +27,9 @@ on:
         type: string
 
 # 同時に複数の ingest が走らないようにする
+# （cancel-in-progress=false: 次回 cron 起動時、前回がまだ走っていれば skip）
 concurrency:
-  group: nightly-ingest
+  group: recurring-ingest
   cancel-in-progress: false
 
 jobs:

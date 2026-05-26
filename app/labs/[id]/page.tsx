@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { RelatedLabsSection } from "@/components/RelatedLabsSection";
+import { TagChip } from "@/components/TagChip";
 import { FIELD_LABEL_BY_CODE } from "@/lib/field-labels";
 import { getRelatedLabs } from "@/lib/recommendations";
 
@@ -39,7 +40,10 @@ export default async function LabDetailPage({ params }: PageProps) {
   const lab = await prisma.lab.findUnique({
     where: { id: labId },
     include: {
-      university: true,
+      university: { include: { parent: true } },
+      affiliations: {
+        include: { university: { include: { parent: true } } },
+      },
       works: { orderBy: { year: "desc" } },
       grants: { orderBy: { periodStart: "desc" } },
       labSocieties: { include: { society: true } },
@@ -137,19 +141,53 @@ export default async function LabDetailPage({ params }: PageProps) {
       </nav>
 
       <header className="mb-8 pb-4 border-b border-gray-200 dark:border-gray-800">
-        <div className="flex items-start justify-between gap-4">
-          <h1 className="text-3xl font-bold mb-2 text-gray-900 dark:text-gray-100">
+        <div className="flex items-start gap-4">
+          <h1 className="text-3xl font-bold mb-2 text-gray-900 dark:text-gray-100 shrink-0">
             {lab.professorName} 研究室
           </h1>
+          {/* タグ全件：研究室名と ☆ の間。クリックで /labs?kw=タグ にジャンプ */}
+          {lab.tags.length > 0 && (
+            <div className="flex-1 min-w-0 flex flex-wrap gap-1 self-center">
+              {lab.tags.map((tag) => (
+                <TagChip
+                  key={tag}
+                  tag={tag}
+                  href={`/labs?kw=${encodeURIComponent(tag)}`}
+                />
+              ))}
+            </div>
+          )}
+          {lab.tags.length === 0 && <div className="flex-1" />}
           <FavoriteButton labId={lab.id} size="md" />
         </div>
         <div className="text-gray-700 dark:text-gray-300">
           主宰者：{lab.professorName}
         </div>
+        {/* 主所属 */}
         <div className="text-gray-600 dark:text-gray-400 text-sm mt-1">
-          {lab.university.name}
+          {lab.university.parent
+            ? `${lab.university.parent.name}・${lab.university.name}`
+            : lab.university.name}
           {lab.department ? `・${lab.department}` : ""}
         </div>
+        {/* 兼任所属（複数大学・機関に cross-affiliation の場合のみ表示） */}
+        {(() => {
+          const others = lab.affiliations
+            .filter((a) => a.universityId !== lab.universityId)
+            .map((a) => a.university);
+          if (others.length === 0) return null;
+          return (
+            <div className="mt-1 text-xs text-gray-500 dark:text-gray-500">
+              兼任：
+              {others.map((u, i) => (
+                <span key={u.id}>
+                  {i > 0 && <span className="mx-1">／</span>}
+                  {u.parent ? `${u.parent.name}・${u.name}` : u.name}
+                </span>
+              ))}
+            </div>
+          );
+        })()}
       </header>
 
       <section className="mb-8">

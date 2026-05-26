@@ -17,20 +17,29 @@ export function Footer() {
             <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">ナビゲーション</h3>
             <ul className="space-y-1 text-xs">
               <li>
-                <Link href="/" className="hover:underline">
+                <Link
+                  href="/"
+                  className="text-gray-700 dark:text-gray-200 hover:text-blue-700 dark:hover:text-blue-300 hover:underline"
+                >
                   トップ
                 </Link>
               </li>
               <li>
-                <Link href="/labs" className="hover:underline">
+                <Link
+                  href="/labs"
+                  className="text-gray-700 dark:text-gray-200 hover:text-blue-700 dark:hover:text-blue-300 hover:underline"
+                >
                   研究室を検索
                 </Link>
               </li>
               <li>
-                <FavoritesNavLink className="hover:underline" />
+                <FavoritesNavLink className="text-gray-700 dark:text-gray-200 hover:text-blue-700 dark:hover:text-blue-300 hover:underline" />
               </li>
               <li>
-                <Link href="/about" className="hover:underline">
+                <Link
+                  href="/about"
+                  className="text-gray-700 dark:text-gray-200 hover:text-blue-700 dark:hover:text-blue-300 hover:underline"
+                >
                   このサイトについて
                 </Link>
               </li>
@@ -44,7 +53,7 @@ export function Footer() {
                   href="https://openalex.org/"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="hover:underline"
+                  className="text-gray-700 dark:text-gray-200 hover:text-blue-700 dark:hover:text-blue-300 hover:underline"
                 >
                   OpenAlex（CC0）
                 </a>
@@ -54,12 +63,12 @@ export function Footer() {
                   href="https://kaken.nii.ac.jp/"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="hover:underline"
+                  className="text-gray-700 dark:text-gray-200 hover:text-blue-700 dark:hover:text-blue-300 hover:underline"
                 >
                   KAKEN（CC BY）
                 </a>
               </li>
-              <li className="text-gray-500 dark:text-gray-500">
+              <li className="text-gray-500 dark:text-gray-400">
                 要約・翻訳：Claude（Anthropic）
               </li>
             </ul>

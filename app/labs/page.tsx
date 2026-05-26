@@ -6,9 +6,11 @@ import { FavoritesFilter } from "@/components/FavoritesFilter";
 import { KeywordModeToggle } from "@/components/KeywordModeToggle";
 import { KeywordTreeFilter } from "@/components/KeywordTreeFilter";
 import { PrefectureTreeFilter } from "@/components/PrefectureTreeFilter";
+import { SortSelect } from "@/components/SortSelect";
 import { TagChip } from "@/components/TagChip";
 import { UniversityTreeFilter } from "@/components/UniversityTreeFilter";
 import { FIELD_LABEL_BY_CODE } from "@/lib/field-labels";
+import { buildFavoriteProfile, scoreLabByProfile } from "@/lib/recommendations";
 
 export const dynamic = "force-dynamic";
 
@@ -16,11 +18,12 @@ export const metadata = {
   title: "研究室を検索",
 };
 
-const SORT_OPTIONS = [
-  { value: "works", label: "論文数（多い順）" },
-  { value: "name", label: "名前順" },
-  { value: "new", label: "新着順" },
-] as const;
+const VALID_SORTS = ["works", "name", "new", "recommend"] as const;
+type Sort = (typeof VALID_SORTS)[number];
+/** sort=recommend のときに DB から取得する候補ラボの上限。
+ *  全件 score 計算するためページネーション前に全てを集める必要があり、
+ *  暴走防止のためハードキャップを設ける。 */
+const RECOMMEND_FETCH_CAP = 2000;
 
 const MIN_WORKS_OPTIONS = [
   { value: "0", label: "指定なし" },
@@ -80,6 +83,10 @@ function buildPageList(
 function buildKeywordCondition(kw: string): Prisma.LabWhereInput {
   return {
     OR: [
+      // Lab.tags に直接含まれていれば即マッチ。
+      // 階層タグ（祖先ラベル）も保存しているため、上位ノードのフィルタも
+      // ここで拾える（"生物学" を選ぶと "生物学" 祖先を持つラボがマッチ）。
+      { tags: { has: kw } },
       { name: { contains: kw, mode: "insensitive" } },
       { professorName: { contains: kw, mode: "insensitive" } },
       { aiSummary: { contains: kw, mode: "insensitive" } },
@@ -113,11 +120,17 @@ export default async function LabsPage({ searchParams }: PageProps) {
   const prefectures = asArray(params.p)
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
-  const sort = params.sort ?? "works";
+  const sortRaw = params.sort ?? "works";
+  const sort: Sort = (VALID_SORTS as readonly string[]).includes(sortRaw)
+    ? (sortRaw as Sort)
+    : "works";
   const fieldCodes = asArray(params.f).filter((c) => /^\d+$/.test(c));
   const minWorks = Math.max(0, Number(params.min) || 0);
   const onlyFavorites = params.fav === "1";
-  const favIds = onlyFavorites
+  // favIds は (a) onlyFavorites=true、(b) sort=recommend のどちらかで利用する。
+  // どちらでもないときは無視（URL に居残っていても影響を与えない）。
+  const wantsFavIds = onlyFavorites || sort === "recommend";
+  const favIds = wantsFavIds
     ? asArray(params.favIds)
         .map((s) => Number(s))
         .filter((n) => Number.isInteger(n) && n > 0)
@@ -142,6 +155,9 @@ export default async function LabsPage({ searchParams }: PageProps) {
     if (sort !== "works") u.set("sort", sort);
     if (onlyFavorites) {
       u.set("fav", "1");
+      for (const id of favIds) u.append("favIds", String(id));
+    } else if (sort === "recommend") {
+      // おすすめ順は favIds を保持（ページ間移動で snapshot が消えないように）
       for (const id of favIds) u.append("favIds", String(id));
     }
     const pageTo = opts.page ?? currentPage;
@@ -171,7 +187,19 @@ export default async function LabsPage({ searchParams }: PageProps) {
     }
   }
   if (universityIds.length > 0) {
-    conditions.push({ universityId: { in: universityIds } });
+    // 親大学が選択された場合、その配下の子センター（research-institute）の
+    // ラボも結果に含める。子センター単独の選択時は親には波及しない。
+    const children = await prisma.university.findMany({
+      where: { parentId: { in: universityIds } },
+      select: { id: true },
+    });
+    const expanded = new Set<number>(universityIds);
+    for (const c of children) expanded.add(c.id);
+    // 複数所属対応：affiliations 経由で検索。これにより、どちらの所属大学
+    // から検索しても該当 PI がヒットする（Lab は 1 件として返るので重複しない）
+    conditions.push({
+      affiliations: { some: { universityId: { in: [...expanded] } } },
+    });
   }
   if (prefectures.length > 0) {
     conditions.push({ university: { prefecture: { in: prefectures } } });
@@ -193,23 +221,72 @@ export default async function LabsPage({ searchParams }: PageProps) {
         ? { createdAt: "desc" }
         : { works: { _count: "desc" } };
 
+  /** 一覧 UI が必要とする lab フィールド一式（親 University も込み） */
+  const labInclude = {
+    university: { include: { parent: true } },
+    _count: { select: { works: true } },
+  } satisfies Prisma.LabInclude;
+  type LabRow = Prisma.LabGetPayload<{ include: typeof labInclude }>;
+
   const skip = (currentPage - 1) * PER_PAGE;
-  const [totalCount, matchingCount, pageMatches, universities] =
-    await Promise.all([
-      prisma.lab.count({ where: { deletedAt: null } }),
-      prisma.lab.count({ where }),
-      prisma.lab.findMany({
-        where,
-        include: {
-          university: true,
-          _count: { select: { works: true } },
+  /** sort=recommend かつお気に入りがあるとき、ページネーション前に
+   *  全候補をフェッチして score を計算する必要がある。
+   *  それ以外は通常通り Prisma で take/skip。 */
+  const recommendActive = sort === "recommend" && favIds.length > 0;
+  const recommendNeedsFavorites = sort === "recommend" && favIds.length === 0;
+
+  const [totalCount, matchingCount, universities, profile] = await Promise.all([
+    prisma.lab.count({ where: { deletedAt: null } }),
+    prisma.lab.count({ where }),
+    prisma.university.findMany({
+      select: { id: true, name: true, category: true, parentId: true },
+      orderBy: { name: "asc" },
+    }),
+    recommendActive ? buildFavoriteProfile(favIds) : Promise.resolve(null),
+  ]);
+
+  /** ページ表示用のラボ配列を作る。
+   *  - 通常 sort: Prisma で order + take + skip
+   *  - recommend sort: 上限 RECOMMEND_FETCH_CAP まで取得→score→sort→ページ切り出し
+   */
+  let pageMatches: LabRow[];
+  let recommendCapped = false;
+  if (recommendActive && profile) {
+    const candidates = await prisma.lab.findMany({
+      where,
+      include: labInclude,
+      // works の多いものから取りつつ cap。スコアが付くラボは tag/field 同一性で決まるので、
+      // works 多いものから見ていけば「実質的に上位」の取りこぼしは少ない。
+      orderBy: { works: { _count: "desc" } },
+      take: RECOMMEND_FETCH_CAP,
+    });
+    recommendCapped = matchingCount > RECOMMEND_FETCH_CAP;
+
+    const scored = candidates.map((c) => ({
+      lab: c,
+      score: scoreLabByProfile(
+        {
+          id: c.id,
+          tags: c.tags,
+          primaryFieldCode: c.primaryFieldCode,
         },
-        orderBy,
-        take: PER_PAGE,
-        skip,
-      }),
-      prisma.university.findMany({ orderBy: { name: "asc" } }),
-    ]);
+        profile,
+      ),
+    }));
+    scored.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return b.lab._count.works - a.lab._count.works;
+    });
+    pageMatches = scored.slice(skip, skip + PER_PAGE).map((s) => s.lab);
+  } else {
+    pageMatches = await prisma.lab.findMany({
+      where,
+      include: labInclude,
+      orderBy,
+      take: PER_PAGE,
+      skip,
+    });
+  }
 
   // minWorks は Prisma で直接フィルタできないので取得後にページ内除外
   // （結果としてページ内表示数が 50 未満になることがあるが、件数表示にその旨を補足）
@@ -283,6 +360,7 @@ export default async function LabsPage({ searchParams }: PageProps) {
                     <Link
                       key={kw}
                       href={toggleKeywordHref(kw)}
+                      scroll={false}
                       className="text-xs px-2 py-0.5 bg-white dark:bg-gray-800 border border-blue-300 dark:border-blue-700 rounded text-blue-900 dark:text-blue-200 hover:bg-blue-100 dark:hover:bg-blue-900/50 inline-flex items-center gap-1"
                       title="クリックで削除"
                     >
@@ -335,7 +413,8 @@ export default async function LabsPage({ searchParams }: PageProps) {
                 キーワード階層
               </h3>
               <p className="text-xs text-gray-500 mb-2 leading-relaxed">
-                上位を選ぶと配下のキーワードを一括選択。
+                クリックでそのラベルをタグとして選択。
+                AND 絞り込みでは上位ラベルだけでもその階層でマッチします。
                 ▶ で開閉、☑/◧/☐ で選択状態を表示。
               </p>
               <KeywordTreeFilter />
@@ -356,11 +435,16 @@ export default async function LabsPage({ searchParams }: PageProps) {
                 </span>
               </summary>
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 leading-relaxed">
-                区分（国立／公立／私学）をクリックでその区分の大学を一括選択。
+                区分（国立／公立／私学／研究機関）をクリックでその区分の機関を一括選択。
                 ▶ で開閉。
               </p>
               <UniversityTreeFilter
-                universities={universities.map((u) => ({ id: u.id, name: u.name }))}
+                universities={universities.map((u) => ({
+                  id: u.id,
+                  name: u.name,
+                  category: u.category,
+                  parentId: u.parentId,
+                }))}
               />
               {/* form submit でも選択を保持するための hidden */}
               {universityIds.map((id) => (
@@ -412,22 +496,10 @@ export default async function LabsPage({ searchParams }: PageProps) {
                     ))}
                   </select>
                 </div>
-                <div>
-                  <label className="block text-xs text-gray-700 dark:text-gray-300 mb-1">
-                    並び替え
-                  </label>
-                  <select
-                    name="sort"
-                    defaultValue={sort}
-                    className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-700 rounded text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                  >
-                    {SORT_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {/* 並び替えは即時 URL 反映の Client Component。
+                    sort=recommend を選んだ瞬間に localStorage のお気に入りを
+                    URL に snapshot するため、form submit に頼らない。 */}
+                <SortSelect />
               </div>
             </details>
 
@@ -483,6 +555,20 @@ export default async function LabsPage({ searchParams }: PageProps) {
             )}
           </div>
 
+          {recommendNeedsFavorites && (
+            <p className="mb-3 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded px-3 py-2">
+              「お気に入りからのおすすめ順」にはお気に入りが必要です。
+              研究室カードの ☆ で追加するか、別の並び替えを選んでください（現在は通常の順序で表示しています）。
+            </p>
+          )}
+          {recommendActive && (
+            <p className="mb-3 text-xs text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded px-3 py-2">
+              お気に入り {favIds.length} 件と共通タグ・同分野・同大学のラボを上位にしています。
+              {recommendCapped &&
+                ` ヒットが多いため、論文数の多い上位 ${RECOMMEND_FETCH_CAP.toLocaleString()} 件のみをスコアリング対象としています。`}
+            </p>
+          )}
+
           {matchCount === 0 ? (
             <p className="text-gray-500 dark:text-gray-400 py-12 text-center bg-gray-50 dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-800">
               該当する研究室がありません。条件を変えてみてください。
@@ -517,7 +603,16 @@ export default async function LabsPage({ searchParams }: PageProps) {
                             {lab.professorName} 研究室
                           </div>
                           <div className="text-sm text-gray-700 dark:text-gray-300 mt-1">
-                            {lab.university.name}
+                            {lab.university.parent ? (
+                              <>
+                                {lab.university.parent.name}
+                                <span className="text-gray-500 dark:text-gray-400">
+                                  ・{lab.university.name}
+                                </span>
+                              </>
+                            ) : (
+                              <>{lab.university.name}</>
+                            )}
                             {lab.department && (
                               <span className="text-gray-500 dark:text-gray-400">
                                 ・{lab.department}

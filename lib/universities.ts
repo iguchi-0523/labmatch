@@ -1,6 +1,17 @@
 import universitiesData from "../config/universities.json";
 
-export type UniversityCategory = "national" | "public" | "private";
+/**
+ * 大学・研究機関の区分。
+ * - national / public / private は大学（学位を出す機関）
+ * - research-institute は OIST / RIKEN / AIST など、学生を受け入れる公的研究機関。
+ *   OIST は学位を出す大学院大学だが、学生像・分野・運営形態が他の大学とは大きく異なる
+ *   ため、利用者の検索体験を優先してこのグループに分類する。
+ */
+export type UniversityCategory =
+  | "national"
+  | "public"
+  | "private"
+  | "research-institute";
 
 export interface University {
   key: string;
@@ -50,6 +61,7 @@ export const CATEGORY_LABEL: Record<UniversityCategory, string> = {
   national: "国立",
   public: "公立",
   private: "私学",
+  "research-institute": "研究機関",
 };
 
 export function getFieldIdsForGroups(groups: FieldGroup[]): number[] {

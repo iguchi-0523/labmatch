@@ -35,9 +35,10 @@ interface CandidateInfo {
 }
 
 async function pickNextUniversity(): Promise<CandidateInfo | null> {
-  const all = getAllUniversities().filter(
-    (u) => u.openalexInstitutionId !== null,
-  );
+  // openalexInstitutionId が null の機関も含める（ingest-utokyo-life.ts の
+  // 動的解決に任せる）。研究機関カテゴリの大半が当初 null で登録されているため、
+  // 旧 filter のままだと 4 本 cron で自動取り込みされない問題があった。
+  const all = getAllUniversities();
 
   // worksCount 降順（worksCount 不明は最後）でソート
   const sorted = [...all].sort((a, b) => {

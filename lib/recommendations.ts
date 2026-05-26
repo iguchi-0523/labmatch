@@ -4,13 +4,14 @@ import { prisma } from "./db";
  * 関連研究室レコメンド：
  *
  * - 「ある研究室と関連した研究をしているラボ」のスコアリング
- * - 入力ラボのタグ・primaryFieldCode・所属大学を基にスコア計算
+ * - 入力ラボのタグ・primaryFieldCode のみを基にスコア計算
  *
  * スコアモデル（直感的、調整可能）:
  *   - 共有タグ 1 件 = +2
  *   - 同じ primaryFieldCode = +5
- *   - 同じ大学 = +1（同分野のクラスタリング助長）
- *   - 同じ大学かつ違う分野 = +0（多様性確保）
+ *
+ * 注: 旧モデルにあった「同じ大学 = +1」は撤去。同じ大学の他ラボが上位を
+ * 占めてしまい、研究内容の関連度が薄れる弊害を避けるため。
  */
 
 export interface RelatedSeed {
@@ -94,8 +95,7 @@ export async function getRelatedLabs(
       seed.primaryFieldCode && c.primaryFieldCode === seed.primaryFieldCode
         ? 5
         : 0;
-    const sameUni = c.universityId === seed.universityId ? 1 : 0;
-    const score = sharedTags.length * 2 + sameField + sameUni;
+    const score = sharedTags.length * 2 + sameField;
     return {
       id: c.id,
       name: c.name,
@@ -162,13 +162,6 @@ export async function getRecommendedFromFavorites(
   }
   const topField = [...fieldCount.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
 
-  // 全ての fav 大学から最頻のものを採用
-  const uniCount = new Map<number, number>();
-  for (const f of fav) {
-    uniCount.set(f.universityId, (uniCount.get(f.universityId) ?? 0) + 1);
-  }
-  const topUni = [...uniCount.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 0;
-
   const candidates = await prisma.lab.findMany({
     where: {
       id: { notIn: favLabIds },
@@ -192,8 +185,7 @@ export async function getRecommendedFromFavorites(
     const sharedTags = c.tags.filter((t) => aggTagSet.has(t));
     const sameField =
       topField && c.primaryFieldCode === topField ? 5 : 0;
-    const sameUni = c.universityId === topUni ? 1 : 0;
-    const score = sharedTags.length * 2 + sameField + sameUni;
+    const score = sharedTags.length * 2 + sameField;
     return {
       id: c.id,
       name: c.name,
@@ -215,4 +207,81 @@ export async function getRecommendedFromFavorites(
   });
 
   return scored.slice(0, limit);
+}
+
+/**
+ * お気に入りラボから集約プロファイル（タグ・分野・大学の重み）を作る。
+ * 検索結果ページの「おすすめ順」並べ替えで再利用するため切り出した。
+ */
+export interface FavoriteProfile {
+  /** 重複出現回数で重み付けした上位 20 タグ */
+  aggregatedTags: string[];
+  /** 最も多く現れた primaryFieldCode（無ければ null） */
+  topField: string | null;
+  /** お気に入り ID（自分を結果から除外するため） */
+  seedIds: Set<number>;
+}
+
+export async function buildFavoriteProfile(
+  favIds: number[],
+): Promise<FavoriteProfile | null> {
+  if (favIds.length === 0) return null;
+  const fav = await prisma.lab.findMany({
+    where: { id: { in: favIds }, deletedAt: null },
+    select: {
+      id: true,
+      tags: true,
+      primaryFieldCode: true,
+      universityId: true,
+    },
+  });
+  if (fav.length === 0) return null;
+
+  const tagCount = new Map<string, number>();
+  for (const f of fav) {
+    for (const t of f.tags) tagCount.set(t, (tagCount.get(t) ?? 0) + 1);
+  }
+  const aggregatedTags = [...tagCount.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 20)
+    .map((x) => x[0]);
+
+  const fieldCount = new Map<string, number>();
+  for (const f of fav) {
+    if (!f.primaryFieldCode) continue;
+    fieldCount.set(
+      f.primaryFieldCode,
+      (fieldCount.get(f.primaryFieldCode) ?? 0) + 1,
+    );
+  }
+  const topField =
+    [...fieldCount.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+
+  return {
+    aggregatedTags,
+    topField,
+    seedIds: new Set(favIds),
+  };
+}
+
+/**
+ * 任意のラボにプロファイルを当ててスコアを計算する。
+ * - お気に入り自身は -1（リストの末尾に追いやる）
+ * - スコアモデル：共有タグ × 2 + 同分野 × 5
+ *   （同大学ボーナスは「同じ大学の別ラボばかり上位を占める」弊害があったため撤去）
+ */
+export function scoreLabByProfile(
+  lab: {
+    id: number;
+    tags: string[];
+    primaryFieldCode: string | null;
+  },
+  profile: FavoriteProfile,
+): number {
+  if (profile.seedIds.has(lab.id)) return -1;
+  const tagSet = new Set(profile.aggregatedTags);
+  const sharedTags = lab.tags.filter((t) => tagSet.has(t)).length;
+  const sameField =
+    profile.topField && lab.primaryFieldCode === profile.topField ? 5 : 0;
+  return sharedTags * 2 + sameField;
 }

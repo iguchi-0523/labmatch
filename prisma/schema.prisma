@@ -10,15 +10,29 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// 大学
+// 大学・研究機関
+//
+// 階層構造（自己参照）：
+//   - 親大学（東京大学）が複数の子センター（医科学研究所・UTokyo Hospital 等）を持つ
+//   - 単独の研究機関（OIST / RIKEN）は parentId=null
+//   - category は config/universities.json と整合（national/public/private/research-institute）
+//
+// 検索動作：
+//   - 親大学を選択 → 親 + すべての子を含むラボがヒット
+//   - 子センターのみ選択 → そのセンターのラボのみ
 model University {
   id         Int      @id @default(autoincrement())
   name       String   @unique
   prefecture String?
+  parentId   Int?     @map("parent_id")
+  category   String?
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt      @map("updated_at")
 
-  labs Lab[]
+  parent          University?      @relation("UnivHierarchy", fields: [parentId], references: [id])
+  children        University[]     @relation("UnivHierarchy")
+  labs            Lab[]
+  labAffiliations LabAffiliation[]
 
   @@map("universities")
 }
@@ -52,10 +66,34 @@ model Lab {
   labFields    LabField[]
   labSocieties LabSociety[]
   labReports   LabReport[]
+  affiliations LabAffiliation[]
 
   @@index([universityId])
   @@index([deletedAt])
   @@map("labs")
+}
+
+// ラボと大学・研究機関の多対多関係（複数所属の研究者）。
+//
+// 例：橋本太郎先生が「東京大学」と「自治医科大学」の両方に cross-affiliation
+//     している場合、Lab レコードは 1 件（先勝ちで universityId=東京大学）。
+//     LabAffiliation は (lab=橋本研, university=東京大学, isPrimary=true) と
+//     (lab=橋本研, university=自治医科大学, isPrimary=false) の 2 行を持つ。
+//
+// 検索は LabAffiliation 経由 → 東京大学でも自治医科大学でも橋本研がヒット。
+// 表示は Lab.university（=主所属）+ 「兼任」リスト。
+model LabAffiliation {
+  labId        Int      @map("lab_id")
+  universityId Int      @map("university_id")
+  isPrimary    Boolean  @default(false) @map("is_primary")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  lab        Lab        @relation(fields: [labId], references: [id], onDelete: Cascade)
+  university University @relation(fields: [universityId], references: [id], onDelete: Cascade)
+
+  @@id([labId, universityId])
+  @@index([universityId])
+  @@map("lab_affiliations")
 }
 
 // 研究成果（論文・著書など）

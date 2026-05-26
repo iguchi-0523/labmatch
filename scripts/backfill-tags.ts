@@ -1,12 +1,17 @@
 import "dotenv/config";
 import { prisma } from "../lib/db";
 import { extractTagsForLab } from "../lib/tags";
-import { getAllTreeKeywords } from "../lib/keyword-tree";
+import {
+  buildIdentifierAncestorMap,
+  getAllTreeIdentifiers,
+} from "../lib/keyword-tree";
 
 /**
  * 既存ラボの tags を一括計算して DB に保存する。
  *
- * - aiSummary + 直近 25 論文タイトル（日英）から KEYWORD_TREE leaf を頻度マッチ
+ * - aiSummary + 直近 25 論文タイトル（日英）から KEYWORD_TREE の識別子を
+ *   頻度マッチ（leaf キーワード + 中間ラベル）
+ * - マッチした各識別子の祖先ラベルもタグに含める（階層タグ）
  * - 既存タグを上書き（再計算）
  * - 並列度 5、約 1,000 ラボで 10〜20 秒程度を想定
  *
@@ -17,9 +22,14 @@ import { getAllTreeKeywords } from "../lib/keyword-tree";
 
 const PARALLEL = 5;
 const WORKS_PER_LAB = 25;
-const MAX_TAGS = 12;
+const MAX_TAGS = 20;
 
-async function processLab(labId: number, allKeywords: string[]) {
+interface Ctx {
+  identifiers: ReturnType<typeof getAllTreeIdentifiers>;
+  ancestorMap: ReturnType<typeof buildIdentifierAncestorMap>;
+}
+
+async function processLab(labId: number, ctx: Ctx) {
   const lab = await prisma.lab.findUnique({
     where: { id: labId },
     select: {
@@ -34,7 +44,7 @@ async function processLab(labId: number, allKeywords: string[]) {
     },
   });
   if (!lab) return { skipped: true };
-  const tags = extractTagsForLab(lab, allKeywords, MAX_TAGS);
+  const tags = extractTagsForLab(lab, ctx, MAX_TAGS);
   await prisma.lab.update({
     where: { id: lab.id },
     data: { tags, tagsGeneratedAt: new Date() },
@@ -56,8 +66,11 @@ async function main() {
   });
   console.log(`Backfilling tags for ${labs.length} labs (onlyEmpty=${onlyEmpty})`);
 
-  const allKeywords = getAllTreeKeywords();
-  console.log(`KEYWORD_TREE candidates: ${allKeywords.length}`);
+  const ctx: Ctx = {
+    identifiers: getAllTreeIdentifiers(),
+    ancestorMap: buildIdentifierAncestorMap(),
+  };
+  console.log(`KEYWORD_TREE identifiers: ${ctx.identifiers.length}`);
 
   const start = Date.now();
   let done = 0;
@@ -69,7 +82,7 @@ async function main() {
     const results = await Promise.all(
       batch.map(async (l) => {
         try {
-          return await processLab(l.id, allKeywords);
+          return await processLab(l.id, ctx);
         } catch (e) {
           console.error(`  lab ${l.id} FAILED:`, e instanceof Error ? e.message : e);
           return { failed: true };

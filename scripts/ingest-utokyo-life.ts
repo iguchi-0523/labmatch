@@ -9,10 +9,16 @@ import {
   type University,
 } from "../lib/universities";
 import { extractTagsForLab } from "../lib/tags";
-import { getAllTreeKeywords } from "../lib/keyword-tree";
+import {
+  buildIdentifierAncestorMap,
+  getAllTreeIdentifiers,
+} from "../lib/keyword-tree";
 
-// ingest 時に使う tag 候補（プロセス起動時に 1 度だけ読み込み）
-const TAG_CANDIDATES = getAllTreeKeywords();
+// ingest 時に使う tag 抽出コンテキスト（プロセス起動時に 1 度だけ構築）
+const TAG_CONTEXT = {
+  identifiers: getAllTreeIdentifiers(),
+  ancestorMap: buildIdentifierAncestorMap(),
+};
 
 /**
  * 戦略1：OpenAlex から東京大学の生命科学系＋医学系 PI を一括取り込みする。
@@ -278,16 +284,47 @@ async function discoverCandidatesForSubfield(
   return data.group_by ?? [];
 }
 
+/**
+ * OpenAlex の Institutions API で nameEn から InstitutionId を検索する。
+ * country_code:JP に絞ることで誤マッチを抑える。
+ * 最上位ヒットを採用するが、works_count が一定以下ならエラー。
+ */
+async function resolveInstitutionId(nameEn: string): Promise<string> {
+  const url = `${OPENALEX}/institutions?search=${encodeURIComponent(nameEn)}&filter=country_code:JP&per-page=5`;
+  interface OAInstitutionHit {
+    id: string;
+    display_name: string;
+    works_count: number;
+  }
+  const result = await withRetry(
+    () => fetchJson<{ results: OAInstitutionHit[] }>(url),
+    `resolve-institution ${nameEn}`,
+  );
+  const hits = result.results ?? [];
+  if (hits.length === 0) {
+    throw new Error(`No OpenAlex institution match for "${nameEn}"`);
+  }
+  const top = hits[0];
+  // I123456789 形式に正規化（OpenAlex は URL https://openalex.org/I... を返す）
+  const m = /\/I(\d+)$/.exec(top.id);
+  const idShort = m ? `I${m[1]}` : top.id;
+  console.log(
+    `  resolved "${nameEn}" → ${idShort} (${top.display_name}, works=${top.works_count})`,
+  );
+  return idShort;
+}
+
 async function discoverAllCandidates(
   uni: University,
   fieldIds: number[],
 ): Promise<Map<string, PICandidate>> {
-  if (!uni.openalexInstitutionId) {
+  // processUniversity 側で null は解決済みなので、ここは非 null を要求
+  const instId = uni.openalexInstitutionId;
+  if (!instId) {
     throw new Error(
-      `University ${uni.key} has no openalexInstitutionId — fill it in config/universities.json`,
+      `University ${uni.key} has no openalexInstitutionId (should be resolved by processUniversity)`,
     );
   }
-  const instId = uni.openalexInstitutionId;
   const candidates = new Map<string, PICandidate>();
 
   // [phase 1/2] field-level discovery（top of class を高速に拾う）
@@ -353,11 +390,99 @@ interface VerifiedPI {
   hIndex: number;
   primaryFieldCode: string | null;
   primaryFieldName: string | null;
+  /** 親大学の lineage を持つ最具体的 institution の display_name
+   *  例: PI が 医科学研究所 所属なら "Institute of Medical Science" 等。
+   *      親大学本体（UTokyo）に直接所属している PI は null。 */
+  centerName: string | null;
+}
+
+/** 大学名から "the " と前後空白を除いた小文字版を返す */
+function normalizeUniName(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/^the\s+/, "")
+    .trim();
+}
+
+const SUB_UNIT_TOKENS = [
+  "hospital",
+  "center",
+  "centre",
+  "institute",
+  "school",
+  "graduate",
+  "faculty",
+  "department",
+  "laboratory",
+  "research",
+  "health",
+  "medical",
+  "library",
+  "museum",
+  "observatory",
+];
+
+/**
+ * institution の display_name が、parent の sub-unit と判定できるか。
+ * 境界条件付きで「Hokkaido University of Science」のような兄弟大学誤マッチを除外する。
+ * 詳細は backfill-departments.ts の同名関数を参照。
+ */
+function isSubInstitution(name: string, parentNorm: string): boolean {
+  const n = normalizeUniName(name);
+  if (n === parentNorm) return false;
+  const idx = n.indexOf(parentNorm);
+  if (idx === -1) return false;
+  const beforeOk =
+    idx === 0 || n[idx - 1] === " " || n[idx - 1] === ",";
+  if (!beforeOk) return false;
+  const endIdx = idx + parentNorm.length;
+  if (endIdx >= n.length) return true;
+  const charAfter = n[endIdx];
+  if (charAfter === "," || charAfter === ".") return true;
+  if (charAfter === " ") {
+    const remaining = n.slice(endIdx + 1);
+    return SUB_UNIT_TOKENS.some((t) => remaining.startsWith(t));
+  }
+  return false;
+}
+
+/**
+ * 親大学の institution lineage を持つ author の所属の中から、最も具体的
+ * （= 親大学そのものではない）institution を選ぶ。研究センター・附置研究所・
+ * 学内機構をラボの department として保存するために使う。
+ *
+ * 2 段階で見る:
+ *   1. OpenAlex の lineage 階層に親大学 ID を含む institution
+ *   2. lineage には現れないが display_name が親大学の sub-unit パターン
+ *      に当てはまる institution（境界条件付き）
+ */
+function pickMostSpecificInstitution(
+  insts: OAInstitutionRef[],
+  parentId: string,
+  parentNameEn: string,
+): OAInstitutionRef | null {
+  // 1) lineage hit
+  for (const inst of insts) {
+    if (shortId(inst.id) === parentId) continue;
+    const lineage = inst.lineage ?? [];
+    if (lineage.some((l) => shortId(l) === parentId)) return inst;
+  }
+  // 2) display_name のパターン一致（兄弟大学誤マッチ排除）
+  const parentNorm = normalizeUniName(parentNameEn);
+  if (parentNorm.length < 6) return null;
+  for (const inst of insts) {
+    if (shortId(inst.id) === parentId) continue;
+    const name = inst.display_name ?? "";
+    if (!name || name === parentNameEn) continue;
+    if (isSubInstitution(name, parentNorm)) return inst;
+  }
+  return null;
 }
 
 function verifyAuthor(
   author: OAAuthor,
   institutionId: string,
+  parentNameEn: string,
 ): VerifiedPI | null {
   const insts = author.last_known_institutions ?? [];
   const inLineage = insts.some((inst) => {
@@ -378,6 +503,14 @@ function verifyAuthor(
     : null;
   const fieldName = primary?.field?.display_name ?? null;
 
+  // 親大学配下の研究センター（附置研究所・学内機構）を捉える
+  const subInst = pickMostSpecificInstitution(
+    insts,
+    institutionId,
+    parentNameEn,
+  );
+  const centerName = subInst?.display_name ?? null;
+
   return {
     authorId: author.id,
     displayName: author.display_name,
@@ -386,6 +519,7 @@ function verifyAuthor(
     hIndex: h,
     primaryFieldCode: fieldCode,
     primaryFieldName: fieldName,
+    centerName,
   };
 }
 
@@ -436,21 +570,70 @@ async function upsertPIAndWorks(
 
   const universityRow = await prisma.university.upsert({
     where: { name: uni.name },
-    update: { prefecture: uni.prefecture },
-    create: { name: uni.name, prefecture: uni.prefecture },
+    update: { prefecture: uni.prefecture, category: uni.category },
+    create: {
+      name: uni.name,
+      prefecture: uni.prefecture,
+      category: uni.category,
+    },
   });
+
+  // PI に研究センター情報がある場合、子 University を作って紐付ける。
+  // 同じセンター名が他の親大学（兄弟）にも存在する可能性は低いが、
+  // upsert の where が name unique なので衝突する。実際に起きたら考える。
+  let labUniversityId = universityRow.id;
+  if (pi.centerName) {
+    const child = await prisma.university.upsert({
+      where: { name: pi.centerName },
+      update: {
+        parentId: universityRow.id,
+        category: "research-institute",
+        prefecture: uni.prefecture,
+      },
+      create: {
+        name: pi.centerName,
+        parentId: universityRow.id,
+        category: "research-institute",
+        prefecture: uni.prefecture,
+      },
+    });
+    labUniversityId = child.id;
+  }
+
+  // 複数所属研究者対応：
+  //   この PI が既に DB にいる場合、その所属を別 family（別の親大学）に書き換えない。
+  //   理由：同一 PI は複数大学に co-affiliation することがあり、ingest の順序で
+  //   universityId が上書きされて「東大に居たはずの研究者が突然京大の所属になる」
+  //   挙動を防ぐため。
+  //   ただし同じ親大学 family 内（親→子センター、子→親）の移動は許容する。
+  const existing = await prisma.lab.findUnique({
+    where: { openalexAuthorId: pi.authorId },
+    include: { university: { select: { id: true, parentId: true } } },
+  });
+  let effectiveUniversityId = labUniversityId;
+  if (existing) {
+    const existingFamilyRoot =
+      existing.university.parentId ?? existing.university.id;
+    const newFamilyRoot = universityRow.id; // 今 ingest 中の親大学
+    if (existingFamilyRoot !== newFamilyRoot) {
+      // 別 family — 既存所属を維持
+      effectiveUniversityId = existing.universityId;
+    }
+  }
 
   const lab = await prisma.lab.upsert({
     where: { openalexAuthorId: pi.authorId },
     update: {
       professorName: pi.displayName,
-      universityId: universityRow.id,
+      universityId: effectiveUniversityId,
       orcid: pi.orcid,
       primaryFieldCode: pi.primaryFieldCode,
       primaryFieldName: pi.primaryFieldName,
+      // 旧フィールド department は子 University 化に伴い使わない
+      department: null,
     },
     create: {
-      universityId: universityRow.id,
+      universityId: effectiveUniversityId,
       name: `${pi.displayName} 研究室`,
       professorName: pi.displayName,
       openalexAuthorId: pi.authorId,
@@ -459,6 +642,43 @@ async function upsertPIAndWorks(
       primaryFieldName: pi.primaryFieldName,
     },
   });
+
+  // LabAffiliation を upsert：複数所属対応。
+  //   - 今 ingest 中の所属（labUniversityId）を兼任として登録
+  //   - 既に primary を持つラボでも、新たな所属の重複は弾かれるだけ（冪等）
+  //   - 主所属（effectiveUniversityId と同じ）には isPrimary=true を維持
+  const isPrimary = labUniversityId === effectiveUniversityId;
+  await prisma.labAffiliation.upsert({
+    where: {
+      labId_universityId: {
+        labId: lab.id,
+        universityId: labUniversityId,
+      },
+    },
+    update: isPrimary ? { isPrimary: true } : {},
+    create: {
+      labId: lab.id,
+      universityId: labUniversityId,
+      isPrimary,
+    },
+  });
+  // 既存の主所属が effectiveUniversityId にあることも担保（先勝ち防止策）
+  if (effectiveUniversityId !== labUniversityId) {
+    await prisma.labAffiliation.upsert({
+      where: {
+        labId_universityId: {
+          labId: lab.id,
+          universityId: effectiveUniversityId,
+        },
+      },
+      update: { isPrimary: true },
+      create: {
+        labId: lab.id,
+        universityId: effectiveUniversityId,
+        isPrimary: true,
+      },
+    });
+  }
 
   let inserted = 0;
   let skipped = 0;
@@ -504,8 +724,8 @@ async function upsertPIAndWorks(
       }));
     const tags = extractTagsForLab(
       { aiSummary: null, works: tagSourceWorks },
-      TAG_CANDIDATES,
-      12,
+      TAG_CONTEXT,
+      20,
     );
     await prisma.lab.update({
       where: { id: lab.id },
@@ -527,11 +747,17 @@ async function processUniversity(
   fieldIds: number[],
   dryRun: boolean,
 ) {
-  console.log(`\n=== ${uni.name} (${uni.openalexInstitutionId}) ===`);
+  // null ID は nameEn からの動的解決（研究機関カテゴリの大半は当初 null）
+  const instId =
+    uni.openalexInstitutionId ?? (await resolveInstitutionId(uni.nameEn));
+  console.log(`\n=== ${uni.name} (${instId}) ===`);
   const start = Date.now();
 
   console.log(`[1/3] Discovering candidates across ${fieldIds.length} fields...`);
-  const candidates = await discoverAllCandidates(uni, fieldIds);
+  const candidates = await discoverAllCandidates(
+    { ...uni, openalexInstitutionId: instId },
+    fieldIds,
+  );
   console.log(`  Unique candidates: ${candidates.size}`);
 
   console.log(`[2/3] Verifying PIs (lineage + works_count≥${MIN_WORKS_COUNT} + h_index≥${MIN_H_INDEX})...`);
@@ -539,7 +765,7 @@ async function processUniversity(
   const verified = await processInBatches(candidateIds, PARALLEL, async (id) => {
     try {
       const author = await fetchAuthor(id);
-      return verifyAuthor(author, uni.openalexInstitutionId!);
+      return verifyAuthor(author, instId, uni.nameEn);
     } catch (e) {
       console.warn(`  verify ${shortId(id)} FAIL: ${e instanceof Error ? e.message : e}`);
       return null;
@@ -610,10 +836,7 @@ async function main() {
   );
 
   for (const uni of targets) {
-    if (!uni.openalexInstitutionId) {
-      console.warn(`SKIP ${uni.key}: openalexInstitutionId is null`);
-      continue;
-    }
+    // openalexInstitutionId が null でも processUniversity 内で nameEn から動的解決する
     await processUniversity(uni, fieldIds, args.dryRun);
   }
 

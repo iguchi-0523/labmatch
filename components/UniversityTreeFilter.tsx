@@ -9,17 +9,19 @@ import {
 } from "@/lib/universities";
 
 /**
- * 大学の階層フィルタ UI（国立 / 公立 / 私学 → 個別大学の 2 階層）。
+ * 大学・研究機関の階層フィルタ UI（国立 / 公立 / 私学 / 研究機関 → 個別大学の 2 階層）。
  *
  * - URL の `u=ID`（複数可）が selection の真実
- * - 大学のカテゴリは config/universities.json の `category` から逆引き
- *   （DB の University と config の name が一致しないものは "その他" に振り分け）
- * - カテゴリのラベルクリックで配下の大学を一括 toggle
+ * - カテゴリは DB の `category` 列を優先し、無ければ config から逆引き
+ * - DB の `parentId` 持ち（=学内研究センター）は親大学とは別に研究機関カテゴリに集約
+ * - カテゴリのラベルクリックで配下の機関を一括 toggle
  */
 
 interface UniRef {
   id: number;
   name: string;
+  category?: string | null;
+  parentId?: number | null;
 }
 
 interface Props {
@@ -34,24 +36,51 @@ const INDICATOR: Record<SelectionState, string> = {
 };
 
 type Category = UniversityCategory | "other";
-const CATEGORY_ORDER: Category[] = ["national", "public", "private", "other"];
+const CATEGORY_ORDER: Category[] = [
+  "national",
+  "public",
+  "private",
+  "research-institute",
+  "other",
+];
 const CATEGORY_DISPLAY: Record<Category, string> = {
   national: CATEGORY_LABEL.national,
   public: CATEGORY_LABEL.public,
   private: CATEGORY_LABEL.private,
+  "research-institute": CATEGORY_LABEL["research-institute"],
   other: "その他",
 };
+
+const VALID_CATS: Category[] = [
+  "national",
+  "public",
+  "private",
+  "research-institute",
+];
+
+function asCategory(s: string | null | undefined): Category | null {
+  return s && (VALID_CATS as string[]).includes(s) ? (s as Category) : null;
+}
 
 function categorize(unis: UniRef[]): Record<Category, UniRef[]> {
   const grouped: Record<Category, UniRef[]> = {
     national: [],
     public: [],
     private: [],
+    "research-institute": [],
     other: [],
   };
   for (const u of unis) {
-    const cfg = getUniversityByName(u.name);
-    const cat: Category = cfg?.category ?? "other";
+    // 1) 学内研究センター（parentId 付き）は無条件で「研究機関」へ
+    let cat: Category = u.parentId ? "research-institute" : "other";
+    // 2) DB の category 列を尊重（parentId 無しでも research-institute がある）
+    const dbCat = asCategory(u.category);
+    if (dbCat) cat = dbCat;
+    // 3) DB に category が無ければ config 由来で逆引き
+    if (cat === "other") {
+      const cfg = getUniversityByName(u.name);
+      if (cfg?.category) cat = cfg.category;
+    }
     grouped[cat].push(u);
   }
   return grouped;
@@ -84,7 +113,7 @@ export function UniversityTreeFilter({ universities }: Props) {
     next.delete("u");
     for (const id of nextSet) next.append("u", String(id));
     next.delete("page");
-    router.push(`${pathname}?${next.toString()}`);
+    router.push(`${pathname}?${next.toString()}`, { scroll: false });
   };
 
   const grouped = categorize(universities);

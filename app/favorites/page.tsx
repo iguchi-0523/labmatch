@@ -9,7 +9,7 @@ import {
   removeFavorite,
 } from "@/lib/favorites-client";
 import { FIELD_LABEL_BY_CODE } from "@/lib/field-labels";
-import type { RelatedLab } from "@/lib/recommendations";
+import { FavoritesRecommendations } from "@/components/FavoritesRecommendations";
 
 interface FavLab {
   id: number;
@@ -27,8 +27,6 @@ export default function FavoritesPage() {
   const [labs, setLabs] = useState<FavLab[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [recommended, setRecommended] = useState<RelatedLab[]>([]);
-  const [recLoading, setRecLoading] = useState(false);
 
   // localStorage → ids
   useEffect(() => {
@@ -47,7 +45,6 @@ export default function FavoritesPage() {
     if (ids === null) return;
     if (ids.length === 0) {
       setLabs([]);
-      setRecommended([]);
       setLoading(false);
       return;
     }
@@ -65,28 +62,6 @@ export default function FavoritesPage() {
       .catch((e) => {
         setError(e instanceof Error ? e.message : String(e));
         setLoading(false);
-      });
-  }, [ids]);
-
-  // ids → fetch recommendations
-  useEffect(() => {
-    if (ids === null || ids.length === 0) {
-      setRecommended([]);
-      return;
-    }
-    setRecLoading(true);
-    fetch(`/api/recommend/from-favorites?ids=${ids.join(",")}`)
-      .then(async (r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
-      .then((data: { labs: RelatedLab[] }) => {
-        setRecommended(data.labs);
-        setRecLoading(false);
-      })
-      .catch(() => {
-        setRecommended([]);
-        setRecLoading(false);
       });
   }, [ids]);
 
@@ -218,77 +193,13 @@ export default function FavoritesPage() {
       {/* レコメンド：お気に入り 1 件以上のとき表示 */}
       {ids !== null && ids.length > 0 && (
         <section className="mt-10 pt-6 border-t border-gray-200 dark:border-gray-800">
-          <h2 className="text-xl font-semibold mb-3 text-gray-900 dark:text-gray-100">
-            あなたへのおすすめ
-            {recommended.length > 0 && (
-              <span className="ml-2 text-sm text-gray-500 dark:text-gray-400 font-normal">
-                ({recommended.length} 件)
-              </span>
-            )}
-          </h2>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-            お気に入りの研究室と共通タグ・同分野のラボから関連度順に表示します。
-          </p>
-          {recLoading ? (
-            <p className="text-sm text-gray-500 dark:text-gray-400 py-6 text-center">
-              読み込み中…
-            </p>
-          ) : recommended.length === 0 ? (
-            <p className="text-sm text-gray-500 dark:text-gray-400 py-6 text-center bg-gray-50 dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-800">
-              関連する研究室が見つかりませんでした。
-            </p>
-          ) : (
-            <ul className="space-y-2">
-              {recommended.map((lab) => {
-                const fieldJp = lab.primaryFieldCode
-                  ? (FIELD_LABEL_BY_CODE[lab.primaryFieldCode] ??
-                    lab.primaryFieldName)
-                  : null;
-                return (
-                  <li
-                    key={lab.id}
-                    className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded hover:border-blue-400 dark:hover:border-blue-500 transition-all"
-                  >
-                    <Link href={`/labs/${lab.id}`} className="block p-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="font-medium text-sm text-gray-900 dark:text-gray-100 leading-snug">
-                            {lab.professorName} 研究室
-                          </div>
-                          <div className="text-xs text-gray-700 dark:text-gray-300 mt-0.5">
-                            {lab.university.name}
-                            {lab.department && (
-                              <span className="text-gray-500 dark:text-gray-400">
-                                ・{lab.department}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        {fieldJp && (
-                          <span className="text-[10px] px-1.5 py-0.5 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 rounded whitespace-nowrap border border-blue-200 dark:border-blue-900 self-center">
-                            {fieldJp}
-                          </span>
-                        )}
-                      </div>
-                      <div className="mt-1.5 flex items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
-                        <span>論文 {lab._count.works} 件</span>
-                        {lab.sharedTags.length > 0 && (
-                          <>
-                            <span className="text-gray-300 dark:text-gray-600">·</span>
-                            <span className="text-blue-700 dark:text-blue-300">
-                              共通: {lab.sharedTags.slice(0, 4).join(", ")}
-                              {lab.sharedTags.length > 4 &&
-                                ` +${lab.sharedTags.length - 4}`}
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+          <FavoritesRecommendations
+            variant="compact"
+            limit={12}
+            heading="あなたへのおすすめ"
+            subheading="お気に入りの研究室と共通タグ・同分野のラボから関連度順に表示します。"
+            hideWhenEmpty
+          />
         </section>
       )}
     </main>

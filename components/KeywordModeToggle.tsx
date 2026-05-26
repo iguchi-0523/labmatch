@@ -20,7 +20,7 @@ export function KeywordModeToggle() {
     const params = new URLSearchParams(searchParams);
     if (next === "and") params.delete("mode");
     else params.set("mode", "or");
-    router.push(`${pathname}?${params.toString()}`);
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
   const baseCls =

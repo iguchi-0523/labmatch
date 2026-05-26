@@ -3,9 +3,16 @@ import { config } from "dotenv";
 config({ override: true });
 import { prisma } from "../lib/db";
 import { generateLabSummary } from "../lib/summary";
+import { extractTagsForLab } from "../lib/tags";
+import {
+  buildIdentifierAncestorMap,
+  getAllTreeIdentifiers,
+} from "../lib/keyword-tree";
 
 /**
  * aiSummary が未生成のラボを対象に、Claude Haiku で AI 要約を一括生成して保存する。
+ * 各ラボごとに、要約の保存と同時に Lab.tags も再計算する（aiSummary を corpus に
+ * 含めるため、tags の精度が要約生成後に上がる）。
  *
  * 「薄グレー」方針:
  *   - 要約対象は hasAbstract=true の works のみ（OpenAlex に abstract が残っている＝
@@ -14,6 +21,10 @@ import { generateLabSummary } from "../lib/summary";
  */
 
 const MAX_WORKS_PER_LAB = 25;
+const TAG_CONTEXT = {
+  identifiers: getAllTreeIdentifiers(),
+  ancestorMap: buildIdentifierAncestorMap(),
+};
 
 async function main() {
   const labs = await prisma.lab.findMany({
@@ -51,13 +62,27 @@ async function main() {
           year: w.year,
         })),
       );
+      // 要約 + タグを同時に保存（タグは新しい aiSummary を corpus に含めて再計算）
+      const tags = extractTagsForLab(
+        {
+          aiSummary: summary,
+          works: lab.works.map((w) => ({ title: w.title, titleJa: w.titleJa })),
+        },
+        TAG_CONTEXT,
+        20,
+      );
       await prisma.lab.update({
         where: { id: lab.id },
-        data: { aiSummary: summary, aiSummaryGeneratedAt: new Date() },
+        data: {
+          aiSummary: summary,
+          aiSummaryGeneratedAt: new Date(),
+          tags,
+          tagsGeneratedAt: new Date(),
+        },
       });
       done++;
       console.log(
-        `  ${done}/${labs.length} ${lab.name} (${summary.length} chars)`,
+        `  ${done}/${labs.length} ${lab.name} (${summary.length} chars, tags=${tags.length})`,
       );
     } catch (e) {
       failed++;

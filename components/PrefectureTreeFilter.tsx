@@ -39,7 +39,7 @@ export function PrefectureTreeFilter() {
     next.delete("p");
     for (const p of nextSet) next.append("p", p);
     next.delete("page"); // フィルタ変更時はページを 1 に戻す
-    router.push(`${pathname}?${next.toString()}`);
+    router.push(`${pathname}?${next.toString()}`, { scroll: false });
   };
 
   return (
