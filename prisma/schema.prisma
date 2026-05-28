@@ -123,16 +123,19 @@ model Grant {
   id          Int       @id @default(autoincrement())
   labId       Int       @map("lab_id")
   title       String
+  awardNumber String?   @map("award_number") // 課題番号（KAKEN 由来、例: "21H02345"）
   periodStart DateTime? @map("period_start")
   periodEnd   DateTime? @map("period_end")
   amount      Int?      // 円
   category    String?   // 審査区分
+  subject     String?   // 細目・研究分野
   kakenUrl    String?   @map("kaken_url")
   createdAt   DateTime  @default(now()) @map("created_at")
 
   lab Lab @relation(fields: [labId], references: [id], onDelete: Cascade)
 
   @@index([labId])
+  @@index([awardNumber])
   @@map("grants")
 }
 
