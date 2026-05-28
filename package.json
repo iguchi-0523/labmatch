@@ -13,6 +13,7 @@
     "ingest:next": "tsx scripts/ingest-next.ts",
     "backfill:tags": "tsx scripts/backfill-tags.ts",
     "backfill:departments": "tsx scripts/backfill-departments.ts",
+    "progress": "tsx scripts/progress-report.ts",
     "discover:jp-institutions": "tsx scripts/discover-japan-institutions.ts",
     "ingest:institution-direct": "tsx scripts/ingest-institution-direct.ts",
     "enrich:researchmap": "tsx scripts/enrich-researchmap.ts",

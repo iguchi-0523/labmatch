@@ -1,0 +1,77 @@
+name: Daily Progress Report
+
+# 毎日 09:00 JST (= 00:00 UTC) に進捗レポートを生成し、docs/progress-latest.md
+# にコミットする。GitHub Actions のログにも表示するので、Watch / RSS で通知が
+# 来るように設定すれば PC 非依存で日次の進捗が分かる。
+#
+# 通知方法（おすすめ順）:
+#   1. https://github.com/iguchi-0523/labmatch を Watch（Custom → Releases / Issues）
+#      → 通知は来ないが、リポジトリ上で進捗が見える
+#   2. docs/progress-latest.md の RSS：
+#      https://github.com/iguchi-0523/labmatch/commits/main/docs/progress-latest.md.atom
+#      → RSS リーダーに登録すると、新規コミット毎にプッシュ通知
+#   3. GitHub の通知設定 → Watch → "All Activity"
+#      → 毎日コミットが来るので通知過多になる可能性あり
+
+on:
+  schedule:
+    - cron: "0 0 * * *" # 00:00 UTC = 09:00 JST
+  workflow_dispatch:
+
+permissions:
+  contents: write # docs/progress-latest.md を push するために必要
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Generate progress report
+        run: |
+          mkdir -p docs
+          {
+            echo "# ラボマッチ 取り込み進捗レポート"
+            echo ""
+            echo "_最終更新: $(TZ='Asia/Tokyo' date '+%Y-%m-%d %H:%M:%S JST')_"
+            echo ""
+            echo '```'
+            npm run progress 2>&1 | tail -60
+            echo '```'
+          } > docs/progress-latest.md
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add docs/progress-latest.md
+          if git diff --staged --quiet; then
+            echo "No changes in progress report"
+            exit 0
+          fi
+          DATE=$(TZ='Asia/Tokyo' date '+%Y-%m-%d')
+          git commit -m "Daily progress report — $DATE"
+          git push origin HEAD:main
+
+      - name: Print report to Actions log
+        run: cat docs/progress-latest.md
