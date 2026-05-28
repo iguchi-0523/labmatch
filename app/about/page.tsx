@@ -6,64 +6,209 @@ export const metadata = {
 
 export default function AboutPage() {
   return (
-    <main className="max-w-3xl mx-auto px-6 py-12">
+    <main className="max-w-3xl mx-auto px-6 py-12 text-gray-800 dark:text-gray-200">
       <nav className="mb-6 text-sm">
-        <Link href="/" className="text-blue-600 hover:underline">
+        <Link
+          href="/"
+          className="text-blue-600 dark:text-blue-400 hover:underline"
+        >
           ← トップ
         </Link>
       </nav>
-      <h1 className="text-3xl font-bold mb-8">ラボマッチについて</h1>
+      <h1 className="text-3xl font-bold mb-8 text-gray-900 dark:text-gray-100">
+        ラボマッチについて
+      </h1>
 
       <section className="mb-8">
-        <h2 className="text-xl font-semibold mb-3">目的</h2>
-        <p className="text-gray-700 leading-relaxed">
-          大学院進学や研究室配属を考える学生が、自分の興味分野に合う大学の研究室を効率よく発見・比較できる場を提供することを目指します。
+        <h2 className="text-xl font-semibold mb-3 text-gray-900 dark:text-gray-100">
+          目的
+        </h2>
+        <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+          大学院進学や研究室配属を考える学生が、自分の興味分野に合う研究室を効率よく発見・比較できる場を提供することを目指します。
+          分野・大学・キーワード・お気に入り傾向で絞り込み、AI 要約で研究内容を平易な日本語で把握できます。
         </p>
       </section>
 
       <section className="mb-8">
-        <h2 className="text-xl font-semibold mb-3">対象範囲（現時点）</h2>
-        <p className="text-gray-700 leading-relaxed">
-          生命科学系の主要 9 大学：東京大学・京都大学・大阪大学・東北大学・名古屋大学・九州大学・北海道大学・早稲田大学・慶應義塾大学。
-          今後、対象分野（理系全体 → 文系含む全分野）と対象大学を順次拡大します。
+        <h2 className="text-xl font-semibold mb-3 text-gray-900 dark:text-gray-100">
+          対象範囲（現時点）
+        </h2>
+        <p className="text-gray-700 dark:text-gray-300 leading-relaxed mb-3">
+          MVP として 9 大学・約 1,800
+          研究室を取り込み済みです（東京大学が中心）。
+          GitHub Actions の自動 ingest で 6 時間おきに 1 大学を追加していく運用で、約 2 週間で旧帝大・主要国公私立 50
+          校弱まで拡大予定です。
         </p>
+        <ul className="list-disc pl-5 space-y-2 text-gray-700 dark:text-gray-300">
+          <li>
+            <span className="font-medium">対象機関：</span>
+            国立 / 公立 / 私学の大学に加え、OIST・理化学研究所・産業技術総合研究所などの公的研究機関、および医科学研究所・University
+            of Tokyo Hospital など 大学内の研究センター・附置研究所も含みます。
+          </li>
+          <li>
+            <span className="font-medium">対象分野：</span>
+            理系全分野（物理学 / 化学 / 生物学 / 医学・健康科学 / 工学 / 情報工学 / 数学 / 地球科学・環境 / 農学）。順次拡大予定。
+          </li>
+        </ul>
       </section>
 
       <section className="mb-8">
-        <h2 className="text-xl font-semibold mb-3">データソース</h2>
-        <ul className="list-disc pl-5 space-y-2 text-gray-700">
+        <h2 className="text-xl font-semibold mb-3 text-gray-900 dark:text-gray-100">
+          主な機能
+        </h2>
+        <ul className="list-disc pl-5 space-y-2 text-gray-700 dark:text-gray-300">
+          <li>
+            <span className="font-medium">階層キーワード検索：</span>
+            学問分野→大領域→サブ領域→leaf
+            の 4 階層ツリーから選択。上位を選べばその階層配下のラボがマッチします。
+          </li>
+          <li>
+            <span className="font-medium">複数キーワードの AND / OR 切替：</span>
+            「ゲノム編集」と「がん」のどちらも含むラボ、いずれかを含むラボを切替可能。
+          </li>
+          <li>
+            <span className="font-medium">大学・研究機関の階層フィルタ：</span>
+            国立／公立／私学／研究機関の区分で絞り込み。
+            親大学を選ぶと配下の研究センターも含み、研究センター単独を選ぶと親大学の他のラボは含みません。
+          </li>
+          <li>
+            <span className="font-medium">お気に入り＆おすすめ順：</span>
+            研究室を★で保存すると、共通タグ・同分野のラボを関連度順に表示します。
+            並び替え「お気に入りからのおすすめ順」も利用可。
+          </li>
+          <li>
+            <span className="font-medium">AI 要約：</span>
+            直近 5 年の論文要旨を Claude
+            が事実情報として再構成し、研究内容を 200〜400 字程度で要約します。
+          </li>
+          <li>
+            <span className="font-medium">外部リンク：</span>
+            researchmap / NRID（KAKEN 研究者）/ 日本の研究.com / Google
+            Scholar / OpenAlex / ORCID へワンクリック。
+          </li>
+          <li>
+            <span className="font-medium">ライト / ダーク表示：</span>
+            ページ下部のトグルで自動 / 明 / 暗を選択可能。
+          </li>
+        </ul>
+      </section>
+
+      <section className="mb-8">
+        <h2 className="text-xl font-semibold mb-3 text-gray-900 dark:text-gray-100">
+          データソース
+        </h2>
+        <ul className="list-disc pl-5 space-y-2 text-gray-700 dark:text-gray-300">
           <li>
             <a
               href="https://openalex.org/"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-600 hover:underline"
+              className="text-blue-600 dark:text-blue-400 hover:underline"
             >
               OpenAlex
             </a>
-            ：論文メタデータ（CC0）
+            ：研究者・論文メタデータ（CC0）
           </li>
           <li>
             <a
               href="https://kaken.nii.ac.jp/"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-600 hover:underline"
+              className="text-blue-600 dark:text-blue-400 hover:underline"
             >
               KAKEN
             </a>
             ：科研費課題（CC BY、出典明記の上で利用）
           </li>
           <li>論文タイトルの日本語訳：Claude（Anthropic）で自動翻訳</li>
-          <li>研究室紹介文：Claude（Anthropic）で自動生成</li>
+          <li>研究室紹介文の AI 要約：Claude（Anthropic）で事実情報を再構成</li>
         </ul>
       </section>
 
       <section className="mb-8">
-        <h2 className="text-xl font-semibold mb-3">注意事項</h2>
-        <ul className="list-disc pl-5 space-y-2 text-gray-700">
+        <h2 className="text-xl font-semibold mb-3 text-gray-900 dark:text-gray-100">
+          よくある質問（Q&amp;A）
+        </h2>
+        <div className="space-y-5">
+          <div>
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-1">
+              Q. 自分の研究室が表示されていません。なぜ？
+            </h3>
+            <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+              現在は段階的に取り込んでいるため、まだ ingest 対象になっていない大学・機関の研究室はヒットしません。
+              また、ヒットの条件として「OpenAlex で works_count ≥ 5、h-index ≥ 3」を最低基準にしているため、論文公開が少ないラボは除外されることがあります。
+              修正・追加依頼は各ラボページの「削除・修正依頼」フォームからお寄せください。
+            </p>
+          </div>
+          <div>
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-1">
+              Q. 研究センター（医科学研究所 / CiRA など）はどう扱われていますか？
+            </h3>
+            <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+              OpenAlex 上で大学の lineage 配下として登録されている研究センターは、独立した「研究機関」として表示しつつ、親大学で検索しても配下のラボが含まれるようにしています。
+              例：「東京大学」で検索すると University of Tokyo
+              Hospital のラボも含みます。「University of Tokyo Hospital」だけを選ぶと、その配下のラボに限定されます。
+              なお、OpenAlex に独立 institution として登録されていない学内研究所（一部の附置研究所）は、現状は親大学の中に含めて表示しています。
+            </p>
+          </div>
+          <div>
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-1">
+              Q. 複数の大学に所属している先生はどう表示されますか？
+            </h3>
+            <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+              研究者ごとに 1 つのラボページにまとめ、ヘッダーに主所属と「兼任：◯◯／△△」のかたちで他の所属を並列に表示しています。
+              どちらの大学から検索しても同じラボページにたどり着けるよう、所属の M:N
+              関係で管理しています。
+            </p>
+          </div>
+          <div>
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-1">
+              Q. AI 要約はどこまで信用できますか？
+            </h3>
+            <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+              要約は直近 5 年で OpenAlex に abstract が公開されている論文のみを対象に、Claude
+              で事実情報を再構成しています。原文の語句や構成を踏襲せず、研究の問い・手法・主要な発見を独自表現で簡潔にまとめる方針です。
+              ただし AI 生成のため誤りや時代遅れの情報が含まれる可能性があります。最終的な判断は研究室の公式情報でご確認ください。
+            </p>
+          </div>
+          <div>
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-1">
+              Q. お気に入りはどこに保存されますか？
+            </h3>
+            <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+              お使いのブラウザの localStorage に保存しています（サーバーへは送信していません）。
+              そのためブラウザのキャッシュをクリアしたり別の端末を使ったりすると見えなくなります。アカウント連携は現時点では未実装です。
+            </p>
+          </div>
+          <div>
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-1">
+              Q. データの更新頻度はどれくらいですか？
+            </h3>
+            <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+              GitHub Actions の cron で 6 時間おきに 1 大学を ingest しています（取り込み済みのラボは毎時の monitor で確認）。
+              既存ラボの論文・タグも順次再計算されます。初期構築フェーズが終わったら頻度を下げる予定です。
+            </p>
+          </div>
+          <div>
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-1">
+              Q. 掲載情報の削除・修正をお願いしたい場合は？
+            </h3>
+            <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+              各ラボページの下部にある「削除・修正依頼」フォームからご連絡ください。
+              大学公式ドメインメールアドレス（<code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">*.ac.jp</code>）からの依頼を優先処理しています。
+              72 時間以内に一次返信します。
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="mb-8">
+        <h2 className="text-xl font-semibold mb-3 text-gray-900 dark:text-gray-100">
+          注意事項
+        </h2>
+        <ul className="list-disc pl-5 space-y-2 text-gray-700 dark:text-gray-300">
           <li>
-            各研究室の紹介文は AI による自動生成のため、誤りや古い情報を含む可能性があります。最終的な判断は研究室の公式情報をご確認ください。
+            各研究室の紹介文・タグは AI による自動生成のため、誤りや古い情報を含む可能性があります。
           </li>
           <li>
             論文タイトルの日本語訳も自動翻訳のため、専門用語の訳が不自然な場合があります。
@@ -78,9 +223,11 @@ export default function AboutPage() {
       </section>
 
       <section className="mb-8">
-        <h2 className="text-xl font-semibold mb-3">運営</h2>
-        <p className="text-gray-700 leading-relaxed">
-          個人による開発・運営です（MVP 開発中）。
+        <h2 className="text-xl font-semibold mb-3 text-gray-900 dark:text-gray-100">
+          運営
+        </h2>
+        <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+          個人による開発・運営です（MVP 開発中）。広告・アフィリエイト等の収益化は将来検討予定です。
         </p>
       </section>
     </main>

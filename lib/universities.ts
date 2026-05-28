@@ -22,6 +22,13 @@ export interface University {
   phase: number;
   enabled: boolean;
   openalexInstitutionId: string | null;
+  /** 親大学の key（OpenAlex の lineage で結ばれていない学内研究所等で使用） */
+  parentKey?: string;
+  /**
+   * true なら `authorships.institutions.id:<ID>` で直接 ingest する
+   * （lineage を使わない）。学内研究所で親大学に紐付かないものに使用。
+   */
+  useDirectIdFilter?: boolean;
 }
 
 export type FieldGroup = "life" | "health";

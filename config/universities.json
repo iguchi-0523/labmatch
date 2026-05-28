@@ -15,7 +15,8 @@
       "4": "主要公立",
       "5": "主要私立（科研費上位30 / 医歯薬保有 / 理工博士後期保有 のいずれか）",
       "6": "研究力 next 25 校（works_count 6K〜85K）",
-      "8": "公的研究機関（OIST / RIKEN / AIST など、学生を受け入れる）"
+      "8": "公的研究機関（OIST / RIKEN / AIST など、学生を受け入れる）",
+      "9": "学内研究所・センター（OpenAlex に親大学の lineage で繋がっていないもの。useDirectIdFilter=true で直接 ingest）"
     },
     "_note": "240大学（国立86+公立98+主要私立~55）に加えて、学生を受け入れる主要研究機関を含めて管理する設計。openalexInstitutionId が null の場合、ingest スクリプトは nameEn による institution search で動的解決する。"
   },
@@ -586,7 +587,7 @@
       "prefecture": "埼玉県",
       "phase": 8,
       "enabled": false,
-      "openalexInstitutionId": "I2802519937",
+      "openalexInstitutionId": "I4210110652",
       "worksCount": 150000
     },
     {
@@ -597,7 +598,7 @@
       "prefecture": "茨城県",
       "phase": 8,
       "enabled": false,
-      "openalexInstitutionId": null,
+      "openalexInstitutionId": "I73613424",
       "worksCount": 0
     },
     {
@@ -619,7 +620,7 @@
       "prefecture": "茨城県",
       "phase": 8,
       "enabled": false,
-      "openalexInstitutionId": null,
+      "openalexInstitutionId": "I205401836",
       "worksCount": 0
     },
     {
@@ -630,7 +631,7 @@
       "prefecture": "茨城県",
       "phase": 8,
       "enabled": false,
-      "openalexInstitutionId": null,
+      "openalexInstitutionId": "I138728355",
       "worksCount": 0
     },
     {
@@ -641,7 +642,7 @@
       "prefecture": "神奈川県",
       "phase": 8,
       "enabled": false,
-      "openalexInstitutionId": null,
+      "openalexInstitutionId": "I200475212",
       "worksCount": 0
     },
     {
@@ -652,7 +653,7 @@
       "prefecture": "神奈川県",
       "phase": 8,
       "enabled": false,
-      "openalexInstitutionId": null,
+      "openalexInstitutionId": "I1315852903",
       "worksCount": 0
     },
     {
@@ -663,7 +664,7 @@
       "prefecture": "茨城県",
       "phase": 8,
       "enabled": false,
-      "openalexInstitutionId": null,
+      "openalexInstitutionId": "I200202764",
       "worksCount": 0
     },
     {
@@ -674,7 +675,7 @@
       "prefecture": "東京都",
       "phase": 8,
       "enabled": false,
-      "openalexInstitutionId": null,
+      "openalexInstitutionId": "I2800865746",
       "worksCount": 0
     },
     {
@@ -707,7 +708,7 @@
       "prefecture": "東京都",
       "phase": 8,
       "enabled": false,
-      "openalexInstitutionId": null,
+      "openalexInstitutionId": "I90023481",
       "worksCount": 0
     },
     {
@@ -784,7 +785,71 @@
       "prefecture": "東京都",
       "phase": 8,
       "enabled": false,
-      "openalexInstitutionId": null,
+      "openalexInstitutionId": "I4210159940",
+      "worksCount": 0
+    },
+    {
+      "key": "kavli-ipmu",
+      "name": "カブリ数物連携宇宙研究機構（Kavli IPMU）",
+      "nameEn": "Kavli Institute for the Physics and Mathematics of the Universe",
+      "category": "research-institute",
+      "prefecture": "千葉県",
+      "phase": 9,
+      "enabled": false,
+      "openalexInstitutionId": "I166644833",
+      "parentKey": "u-tokyo",
+      "useDirectIdFilter": true,
+      "worksCount": 8575
+    },
+    {
+      "key": "tokyo-met-imed",
+      "name": "東京都医学総合研究所",
+      "nameEn": "Tokyo Metropolitan Institute of Medical Science",
+      "category": "research-institute",
+      "prefecture": "東京都",
+      "phase": 9,
+      "enabled": false,
+      "openalexInstitutionId": "I4210098918",
+      "useDirectIdFilter": true,
+      "worksCount": 9675
+    },
+    {
+      "key": "riken-cims",
+      "name": "理研 統合生命医科学研究センター",
+      "nameEn": "RIKEN Center for Integrative Medical Sciences",
+      "category": "research-institute",
+      "prefecture": "神奈川県",
+      "phase": 9,
+      "enabled": false,
+      "openalexInstitutionId": "I4210150921",
+      "parentKey": "riken",
+      "useDirectIdFilter": true,
+      "worksCount": 9336
+    },
+    {
+      "key": "riken-aip",
+      "name": "理研 革新知能統合研究センター",
+      "nameEn": "RIKEN Center for Advanced Intelligence Project",
+      "category": "research-institute",
+      "prefecture": "東京都",
+      "phase": 9,
+      "enabled": false,
+      "openalexInstitutionId": "I4210126580",
+      "parentKey": "riken",
+      "useDirectIdFilter": true,
+      "worksCount": 4642
+    },
+    {
+      "key": "cira-kyoto",
+      "name": "CiRA（京都大学 iPS 細胞研究所）",
+      "nameEn": "Center for iPS Cell Research and Application, Kyoto University",
+      "category": "research-institute",
+      "prefecture": "京都府",
+      "phase": 9,
+      "enabled": false,
+      "openalexInstitutionId": "I4405264757",
+      "parentKey": "kyoto-u",
+      "useDirectIdFilter": true,
       "worksCount": 0
     }
   ]
