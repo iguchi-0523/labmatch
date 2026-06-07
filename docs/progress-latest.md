@@ -1,6 +1,6 @@
 # ラボマッチ 取り込み進捗レポート
 
-_最終更新: 2026-06-06 18:14:10 JST_
+_最終更新: 2026-06-07 19:14:23 JST_
 
 ```
 
@@ -9,7 +9,7 @@ _最終更新: 2026-06-06 18:14:10 JST_
 
 =================================
   ラボマッチ 取り込み進捗レポート
-  2026/6/6 18:14:12 JST
+  2026/6/7 19:14:23 JST
 =================================
 
 ■ 取り込み完了済み (labs >= 50): 9/72 機関 (13%)
@@ -24,7 +24,7 @@ _最終更新: 2026-06-06 18:14:10 JST_
   ✓ Tokyo Metropolitan Institute of Medical Science 94 labs
 
 ■ 部分取り込み (1〜49 labs): 3 機関
-  · 理化学研究所                 19 labs
+  · 理化学研究所                 21 labs
   · 早稲田大学                  8 labs
   · 慶應義塾大学                 6 labs
 
@@ -32,19 +32,19 @@ _最終更新: 2026-06-06 18:14:10 JST_
   · University of Tokyo Hospital                            277 labs
   · Kyoto University Hospital                               208 labs
   · Kyushu University Hospital                              174 labs
-  · RIKEN Center for Integrative Medical Sciences           141 labs
+  · RIKEN Center for Integrative Medical Sciences           142 labs
   · Hokkaido University Hospital                            123 labs
   · RIKEN Center for Biosystems Dynamics Research           116 labs
-  · RIKEN Center for Sustainable Resource Science           105 labs
+  · RIKEN Center for Sustainable Resource Science           106 labs
   · Osaka University Hospital                               102 labs
   · RIKEN Center for Brain Science                          97 labs
   · Tohoku University Hospital                              93 labs
 
 ■ 全体統計
-  ラボ総数:     8,678
-  論文総数:     318,535
-  AI 要約済み:  8,480 (98%)
-  タグ付き:     8,470 (98%)
+  ラボ総数:     8,683
+  論文総数:     318,721
+  AI 要約済み:  8,485 (98%)
+  タグ付き:     8,475 (98%)
 
 ■ config に登録されている総数: 72 機関（大学 + 公的研究機関 + 学内研究所）
   残: 約 63 機関 (4 本/日 cron で約 16 日で完走)
