@@ -1,6 +1,6 @@
 # ラボマッチ 取り込み進捗レポート
 
-_最終更新: 2026-06-07 19:14:23 JST_
+_最終更新: 2026-06-08 23:40:28 JST_
 
 ```
 
@@ -9,7 +9,7 @@ _最終更新: 2026-06-07 19:14:23 JST_
 
 =================================
   ラボマッチ 取り込み進捗レポート
-  2026/6/7 19:14:23 JST
+  2026/6/8 23:40:30 JST
 =================================
 
 ■ 取り込み完了済み (labs >= 50): 9/72 機関 (13%)
@@ -37,14 +37,14 @@ _最終更新: 2026-06-07 19:14:23 JST_
   · RIKEN Center for Biosystems Dynamics Research           116 labs
   · RIKEN Center for Sustainable Resource Science           106 labs
   · Osaka University Hospital                               102 labs
-  · RIKEN Center for Brain Science                          97 labs
+  · RIKEN Center for Brain Science                          99 labs
   · Tohoku University Hospital                              93 labs
 
 ■ 全体統計
-  ラボ総数:     8,683
-  論文総数:     318,721
-  AI 要約済み:  8,485 (98%)
-  タグ付き:     8,475 (98%)
+  ラボ総数:     8,686
+  論文総数:     318,776
+  AI 要約済み:  8,488 (98%)
+  タグ付き:     8,478 (98%)
 
 ■ config に登録されている総数: 72 機関（大学 + 公的研究機関 + 学内研究所）
   残: 約 63 機関 (4 本/日 cron で約 16 日で完走)
