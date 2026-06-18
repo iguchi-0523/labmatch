@@ -34,6 +34,28 @@ interface CandidateInfo {
   currentLabCount: number;
 }
 
+/**
+ * 完了判定用の lab 数。親大学自身の lab だけでなく、子センター
+ *（parentId が当該大学を指す University）の lab も合算する。
+ *
+ * 理由：RIKEN のように PI が全員子センター（RIKEN Center for ...）に
+ * 振り分けられる機関では、親レコード自体の lab 数が 50 に届かず、
+ * ingest-next が毎回その機関を選び直して無限ループしていた（2026-06-18 発覚）。
+ */
+async function countLabsIncludingChildren(uniName: string): Promise<number> {
+  const uni = await prisma.university.findUnique({
+    where: { name: uniName },
+    select: { id: true },
+  });
+  if (!uni) return 0;
+  return prisma.lab.count({
+    where: {
+      deletedAt: null,
+      OR: [{ universityId: uni.id }, { university: { parentId: uni.id } }],
+    },
+  });
+}
+
 async function pickNextUniversity(): Promise<CandidateInfo | null> {
   // openalexInstitutionId が null の機関も含める（ingest-utokyo-life.ts の
   // 動的解決に任せる）。研究機関カテゴリの大半が当初 null で登録されているため、
@@ -48,9 +70,7 @@ async function pickNextUniversity(): Promise<CandidateInfo | null> {
   });
 
   for (const uni of sorted) {
-    const labCount = await prisma.lab.count({
-      where: { university: { name: uni.name }, deletedAt: null },
-    });
+    const labCount = await countLabsIncludingChildren(uni.name);
     if (labCount < MIN_LAB_COUNT_TO_CONSIDER_DONE) {
       return { university: uni, currentLabCount: labCount };
     }
