@@ -2,6 +2,9 @@ import Link from "next/link";
 
 export const metadata = {
   title: "このサイトについて",
+  description:
+    "ラボマッチの目的・対象範囲・データソース・よくある質問。OpenAlex と KAKEN を基に、大学と研究機関の研究室情報を AI 要約付きで提供しています。",
+  alternates: { canonical: "/about" },
 };
 
 export default function AboutPage() {

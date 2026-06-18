@@ -16,6 +16,15 @@ export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "研究室を検索",
+  description:
+    "分野・大学・研究機関・キーワードで日本の研究室を絞り込み検索。約 8,700 研究室から、興味に合う進学先・配属先を探せます。AI 要約と論文リスト付き。",
+  alternates: { canonical: "/labs" },
+  openGraph: {
+    title: "研究室を検索 | ラボマッチ",
+    description:
+      "分野・大学・研究機関・キーワードで日本の研究室を絞り込み検索。AI 要約と論文リスト付き。",
+    url: "https://www.labmatch.jp/labs",
+  },
 };
 
 const VALID_SORTS = ["works", "name", "new", "recommend"] as const;

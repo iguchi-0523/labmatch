@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { FavoritesRecommendations } from "@/components/FavoritesRecommendations";
+import { JsonLd } from "@/components/JsonLd";
+import { SITE_NAME, SITE_URL } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +13,40 @@ export default async function Home() {
     prisma.university.count(),
   ]);
 
+  // サイト全体の構造化データ。SearchAction で Google のサイトリンク検索ボックス、
+  // Organization でブランド情報を提示する。
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": `${SITE_URL}/#website`,
+        url: SITE_URL,
+        name: SITE_NAME,
+        inLanguage: "ja",
+        description:
+          "日本の大学・研究機関の研究室を分野・大学・キーワードから検索できるサイト。",
+        potentialAction: {
+          "@type": "SearchAction",
+          target: {
+            "@type": "EntryPoint",
+            urlTemplate: `${SITE_URL}/labs?q={search_term_string}`,
+          },
+          "query-input": "required name=search_term_string",
+        },
+      },
+      {
+        "@type": "Organization",
+        "@id": `${SITE_URL}/#org`,
+        name: SITE_NAME,
+        url: SITE_URL,
+      },
+    ],
+  };
+
   return (
+    <>
+      <JsonLd data={jsonLd} />
     <section className="min-h-[calc(100vh-3rem)] px-6 py-10 bg-gradient-to-b from-blue-50 to-white dark:from-gray-900 dark:to-gray-950">
       <div className="max-w-4xl w-full mx-auto">
         {/* ヘッダー */}
@@ -110,5 +145,6 @@ export default async function Home() {
         </p>
       </div>
     </section>
+    </>
   );
 }

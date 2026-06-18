@@ -2,15 +2,29 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { FavoriteButton } from "@/components/FavoriteButton";
+import { JsonLd } from "@/components/JsonLd";
 import { RelatedLabsSection } from "@/components/RelatedLabsSection";
 import { TagChip } from "@/components/TagChip";
 import { FIELD_LABEL_BY_CODE } from "@/lib/field-labels";
 import { getRelatedLabs } from "@/lib/recommendations";
+import { SITE_NAME, SITE_URL } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
 
 interface PageProps {
   params: Promise<{ id: string }>;
+}
+
+/** ラボ詳細の description を、研究分野・タグ・大学を織り込んで作る */
+function buildLabDescription(lab: {
+  professorName: string;
+  university: { name: string };
+  primaryFieldName: string | null;
+  tags: string[];
+}): string {
+  const field = lab.primaryFieldName ? `${lab.primaryFieldName}分野。` : "";
+  const tags = lab.tags.length > 0 ? `研究テーマ: ${lab.tags.slice(0, 6).join("、")}。` : "";
+  return `${lab.university.name} ${lab.professorName} 研究室の紹介。${field}${tags}直近 5 年の論文と AI 要約、外部リンク（researchmap / KAKEN ほか）をまとめています。`;
 }
 
 export async function generateMetadata({ params }: PageProps) {
@@ -20,15 +34,32 @@ export async function generateMetadata({ params }: PageProps) {
   const lab = await prisma.lab.findUnique({
     where: { id: labId },
     select: {
-      name: true,
       professorName: true,
-      university: { select: { name: true } },
+      primaryFieldName: true,
+      tags: true,
+      deletedAt: true,
+      university: { select: { name: true, parent: { select: { name: true } } } },
     },
   });
-  if (!lab) return { title: "見つかりません" };
+  if (!lab || lab.deletedAt) return { title: "見つかりません" };
+  const uniLabel = lab.university.parent
+    ? `${lab.university.parent.name}・${lab.university.name}`
+    : lab.university.name;
+  const title = `${lab.professorName} 研究室（${uniLabel}）`;
+  const description = buildLabDescription(lab);
+  const canonical = `/labs/${labId}`;
   return {
-    title: `${lab.professorName} 研究室`,
-    description: `${lab.professorName}（${lab.university.name}）の研究室紹介ページ。直近 5 年の研究成果と AI 要約。`,
+    title,
+    description,
+    alternates: { canonical },
+    openGraph: {
+      type: "profile",
+      url: `${SITE_URL}${canonical}`,
+      siteName: SITE_NAME,
+      title: `${title} | ${SITE_NAME}`,
+      description,
+    },
+    twitter: { card: "summary", title, description },
   };
 }
 
@@ -66,6 +97,53 @@ export default async function LabDetailPage({ params }: PageProps) {
   // AI 要約は cron/backfill で事前生成のみ（コスト保護のためオンデマンド生成は廃止）。
   // 「薄グレー」方針：hasAbstract=true の works のみが要約対象。
   const worksWithAbstract = lab.works.filter((w) => w.hasAbstract);
+
+  // 構造化データ：研究者(Person) を主体に、所属大学・直近論文・パンくずを付与。
+  // AI と検索エンジンが「誰が・どこで・何を研究しているか」を解釈できるようにする。
+  const uniName = lab.university.parent
+    ? lab.university.parent.name
+    : lab.university.name;
+  const subOrg = lab.university.parent ? lab.university.name : null;
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "ProfilePage",
+        "@id": `${SITE_URL}/labs/${lab.id}#profile`,
+        url: `${SITE_URL}/labs/${lab.id}`,
+        name: `${lab.professorName} 研究室`,
+        inLanguage: "ja",
+        about: { "@id": `${SITE_URL}/labs/${lab.id}#person` },
+        ...(lab.aiSummary ? { description: lab.aiSummary } : {}),
+      },
+      {
+        "@type": "Person",
+        "@id": `${SITE_URL}/labs/${lab.id}#person`,
+        name: lab.professorName,
+        affiliation: {
+          "@type": "Organization",
+          name: subOrg ? `${uniName} ${subOrg}` : uniName,
+        },
+        ...(lab.orcid
+          ? { identifier: { "@type": "PropertyValue", propertyID: "ORCID", value: lab.orcid } }
+          : {}),
+        knowsAbout: lab.tags.slice(0, 12),
+      },
+      {
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "ラボマッチ", item: SITE_URL },
+          { "@type": "ListItem", position: 2, name: "研究室一覧", item: `${SITE_URL}/labs` },
+          {
+            "@type": "ListItem",
+            position: 3,
+            name: `${lab.professorName} 研究室`,
+            item: `${SITE_URL}/labs/${lab.id}`,
+          },
+        ],
+      },
+    ],
+  };
 
   // 外部リンク用の URL を組み立て（ID が無ければ検索リンクにフォールバック）
   // 全てローマ字氏名（lab.professorName）を使う。
@@ -130,6 +208,7 @@ export default async function LabDetailPage({ params }: PageProps) {
 
   return (
     <main className="min-h-screen p-8 max-w-5xl mx-auto">
+      <JsonLd data={jsonLd} />
       <nav className="mb-4 text-sm space-x-2">
         <Link href="/" className="text-blue-600 dark:text-blue-400 hover:underline">
           トップ
