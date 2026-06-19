@@ -27,7 +27,7 @@ export const metadata = {
   },
 };
 
-const VALID_SORTS = ["works", "name", "new", "recommend"] as const;
+const VALID_SORTS = ["works", "popular", "name", "new", "recommend"] as const;
 type Sort = (typeof VALID_SORTS)[number];
 /** sort=recommend のときに DB から取得する候補ラボの上限。
  *  全件 score 計算するためページネーション前に全てを集める必要があり、
@@ -40,6 +40,10 @@ const MIN_WORKS_OPTIONS = [
   { value: "10", label: "10 件以上" },
   { value: "15", label: "15 件以上" },
   { value: "20", label: "20 件以上" },
+  { value: "30", label: "30 件以上" },
+  { value: "50", label: "50 件以上" },
+  { value: "75", label: "75 件以上" },
+  { value: "100", label: "100 件以上" },
 ] as const;
 
 interface PageProps {
@@ -257,7 +261,9 @@ export default async function LabsPage({ searchParams }: PageProps) {
       ? { professorName: "asc" }
       : sort === "new"
         ? { createdAt: "desc" }
-        : { works: { _count: "desc" } };
+        : sort === "popular"
+          ? { viewCount: "desc" }
+          : { works: { _count: "desc" } };
 
   /** 一覧 UI が必要とする lab フィールド一式（親 University も込み） */
   const labInclude = {

@@ -15,6 +15,7 @@ import { FAVORITES_EVENT, getFavorites } from "@/lib/favorites-client";
 
 const SORT_OPTIONS = [
   { value: "works", label: "論文数（多い順）" },
+  { value: "popular", label: "人気順（閲覧が多い順）" },
   { value: "name", label: "名前順" },
   { value: "new", label: "新着順" },
   { value: "recommend", label: "お気に入りからのおすすめ順" },

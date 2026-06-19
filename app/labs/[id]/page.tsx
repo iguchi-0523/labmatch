@@ -83,6 +83,12 @@ export default async function LabDetailPage({ params }: PageProps) {
 
   if (!lab || lab.deletedAt) notFound();
 
+  // 閲覧数を加算（人気順ソート用）。描画を待たせないよう fire-and-forget。
+  // 失敗してもページ表示には影響させない。
+  void prisma.lab
+    .update({ where: { id: lab.id }, data: { viewCount: { increment: 1 } } })
+    .catch(() => {});
+
   // 関連研究室をタグ・分野・大学から算出
   const relatedLabs = await getRelatedLabs(
     {
