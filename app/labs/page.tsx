@@ -44,7 +44,7 @@ const MIN_WORKS_OPTIONS = [
 
 interface PageProps {
   searchParams: Promise<{
-    q?: string;
+    q?: string | string[];
     kw?: string | string[];
     mode?: string;
     u?: string | string[];
@@ -89,22 +89,23 @@ function buildPageList(
   return result;
 }
 
-function buildKeywordCondition(kw: string): Prisma.LabWhereInput {
+/**
+ * フリーテキスト検索（`q`）の 1 語に対する条件。
+ * 研究室名・主宰者・AI 要約・論文タイトル（日英）だけを対象にし、分野タグ
+ * （tags 列）は見ない。タグ検索と独立させるため、ここで tags を混ぜない。
+ */
+function buildTextCondition(term: string): Prisma.LabWhereInput {
   return {
     OR: [
-      // Lab.tags に直接含まれていれば即マッチ。
-      // 階層タグ（祖先ラベル）も保存しているため、上位ノードのフィルタも
-      // ここで拾える（"生物学" を選ぶと "生物学" 祖先を持つラボがマッチ）。
-      { tags: { has: kw } },
-      { name: { contains: kw, mode: "insensitive" } },
-      { professorName: { contains: kw, mode: "insensitive" } },
-      { aiSummary: { contains: kw, mode: "insensitive" } },
+      { name: { contains: term, mode: "insensitive" } },
+      { professorName: { contains: term, mode: "insensitive" } },
+      { aiSummary: { contains: term, mode: "insensitive" } },
       {
         works: {
           some: {
             OR: [
-              { title: { contains: kw, mode: "insensitive" } },
-              { titleJa: { contains: kw, mode: "insensitive" } },
+              { title: { contains: term, mode: "insensitive" } },
+              { titleJa: { contains: term, mode: "insensitive" } },
             ],
           },
         },
@@ -113,14 +114,32 @@ function buildKeywordCondition(kw: string): Prisma.LabWhereInput {
   };
 }
 
+/**
+ * 分野タグ（`kw`、キーワードツリー / カードのタグチップ由来）の 1 語に対する条件。
+ * Lab.tags 列だけを見る。階層タグ（祖先ラベル）も tags に保存済みなので、
+ * 上位ノード（"生物学" 等）でもここでマッチする。
+ */
+function buildTagCondition(tag: string): Prisma.LabWhereInput {
+  return { tags: { has: tag } };
+}
+
 export default async function LabsPage({ searchParams }: PageProps) {
   const params = await searchParams;
-  const qInput = params.q?.trim() ?? "";
-  const kwParams = asArray(params.kw)
-    .map((k) => k.trim())
-    .filter((k) => k.length > 0);
-  const selectedKeywords = Array.from(
-    new Set(qInput ? [...kwParams, qInput] : kwParams),
+  // フリーテキスト検索（研究室名・主宰者・AI 要約・論文タイトル）。`q` に集約。
+  const queryTerms = Array.from(
+    new Set(
+      asArray(params.q)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0),
+    ),
+  );
+  // 分野タグ（キーワードツリー / カードのタグチップ）。`kw` に集約。
+  const tagTerms = Array.from(
+    new Set(
+      asArray(params.kw)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0),
+    ),
   );
   const mode = params.mode === "or" ? "or" : "and";
   const universityIds = asArray(params.u)
@@ -147,15 +166,16 @@ export default async function LabsPage({ searchParams }: PageProps) {
     : [];
   const currentPage = Math.max(1, Number(params.page) || 1);
 
-  // 現状の filter 状態を URL パラメータに復元するヘルパー
-  // pageOverride を渡せば page だけ差し替えたリンクが作れる
+  // 現状の filter 状態を URL パラメータに復元するヘルパー。
+  // queries / tags を個別に差し替えられる（一方を渡さなければ現状維持）。
   const buildFilterParams = (opts: {
-    keywords?: string[];
+    queries?: string[];
+    tags?: string[];
     page?: number;
   } = {}): URLSearchParams => {
     const u = new URLSearchParams();
-    const kws = opts.keywords ?? selectedKeywords;
-    for (const k of kws) u.append("kw", k);
+    for (const q of opts.queries ?? queryTerms) u.append("q", q);
+    for (const t of opts.tags ?? tagTerms) u.append("kw", t);
     if (mode !== "and") u.set("mode", mode);
     for (const id of universityIds) u.append("u", String(id));
     for (const p of prefectures) u.append("p", p);
@@ -177,23 +197,32 @@ export default async function LabsPage({ searchParams }: PageProps) {
   const pageHref = (target: number): string =>
     `/labs?${buildFilterParams({ page: target }).toString()}`;
 
-  const toggleKeywordHref = (kw: string) => {
-    const isSelected = selectedKeywords.includes(kw);
-    const next = isSelected
-      ? selectedKeywords.filter((k) => k !== kw)
-      : [...selectedKeywords, kw];
-    // キーワード切替はページを 1 に戻す
-    return `/labs?${buildFilterParams({ keywords: next, page: 1 }).toString()}`;
+  // フリーテキスト語の削除リンク（chip の × 用）
+  const removeQueryHref = (term: string) =>
+    `/labs?${buildFilterParams({
+      queries: queryTerms.filter((q) => q !== term),
+      page: 1,
+    }).toString()}`;
+
+  // 分野タグの toggle リンク（カードのタグチップ / tag chip の × 用）
+  const toggleTagHref = (tag: string) => {
+    const next = tagTerms.includes(tag)
+      ? tagTerms.filter((t) => t !== tag)
+      : [...tagTerms, tag];
+    return `/labs?${buildFilterParams({ tags: next, page: 1 }).toString()}`;
   };
 
   const conditions: Prisma.LabWhereInput[] = [];
-  if (selectedKeywords.length > 0) {
-    const keywordConditions = selectedKeywords.map(buildKeywordCondition);
-    if (mode === "and") {
-      conditions.push(...keywordConditions);
-    } else {
-      conditions.push({ OR: keywordConditions });
-    }
+  // フリーテキスト群と分野タグ群は別々に組み、それぞれ AND/OR を適用したうえで
+  // 互いを AND 結合する（外側 where が AND）。これにより「研究者名 + 分野タグ」を
+  // OR にしても、研究者名の条件は必ず残る。
+  if (queryTerms.length > 0) {
+    const textConds = queryTerms.map(buildTextCondition);
+    conditions.push(mode === "and" ? { AND: textConds } : { OR: textConds });
+  }
+  if (tagTerms.length > 0) {
+    const tagConds = tagTerms.map(buildTagCondition);
+    conditions.push(mode === "and" ? { AND: tagConds } : { OR: tagConds });
   }
   if (universityIds.length > 0) {
     // 親大学が選択された場合、その配下の子センター（research-institute）の
@@ -310,8 +339,9 @@ export default async function LabsPage({ searchParams }: PageProps) {
   const pageEnd = Math.min(currentPage * PER_PAGE, matchingCount);
   const minWorksExcludedOnPage = pageMatches.length - labs.length;
 
+  const totalSelected = queryTerms.length + tagTerms.length;
   const hasFilters =
-    selectedKeywords.length > 0 ||
+    totalSelected > 0 ||
     universityIds.length > 0 ||
     prefectures.length > 0 ||
     fieldCodes.length > 0 ||
@@ -359,21 +389,41 @@ export default async function LabsPage({ searchParams }: PageProps) {
                 入力して「絞り込む」で追加されます。
               </p>
 
-              {/* 選択中のキーワード */}
-              {selectedKeywords.length > 0 && (
+              {/* 選択中のフリーテキスト語 */}
+              {queryTerms.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mt-3 p-2.5 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded">
                   <span className="text-xs text-blue-900 dark:text-blue-200 self-center mr-1 font-medium">
-                    選択中（{selectedKeywords.length}件）:
+                    キーワード:
                   </span>
-                  {selectedKeywords.map((kw) => (
+                  {queryTerms.map((term) => (
                     <Link
-                      key={kw}
-                      href={toggleKeywordHref(kw)}
+                      key={term}
+                      href={removeQueryHref(term)}
                       scroll={false}
                       className="text-xs px-2 py-0.5 bg-white dark:bg-gray-800 border border-blue-300 dark:border-blue-700 rounded text-blue-900 dark:text-blue-200 hover:bg-blue-100 dark:hover:bg-blue-900/50 inline-flex items-center gap-1"
                       title="クリックで削除"
                     >
-                      {kw} <span className="text-blue-500 dark:text-blue-400">×</span>
+                      {term} <span className="text-blue-500 dark:text-blue-400">×</span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+
+              {/* 選択中の分野タグ */}
+              {tagTerms.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-2 p-2.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 rounded">
+                  <span className="text-xs text-emerald-900 dark:text-emerald-200 self-center mr-1 font-medium">
+                    分野タグ:
+                  </span>
+                  {tagTerms.map((tag) => (
+                    <Link
+                      key={tag}
+                      href={toggleTagHref(tag)}
+                      scroll={false}
+                      className="text-xs px-2 py-0.5 bg-white dark:bg-gray-800 border border-emerald-300 dark:border-emerald-700 rounded text-emerald-900 dark:text-emerald-200 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 inline-flex items-center gap-1"
+                      title="クリックで削除"
+                    >
+                      {tag} <span className="text-emerald-500 dark:text-emerald-400">×</span>
                     </Link>
                   ))}
                 </div>
@@ -386,12 +436,15 @@ export default async function LabsPage({ searchParams }: PageProps) {
                 <input type="hidden" name="mode" value="or" />
               )}
 
-              {/* 既存の kw を hidden で持ち越し */}
-              {selectedKeywords
-                .filter((k) => k !== qInput)
-                .map((k) => (
-                  <input key={k} type="hidden" name="kw" value={k} />
-                ))}
+              {/* 既存の q（フリーテキスト語）を hidden で持ち越し。
+                  入力欄は defaultValue="" なので、ここで既存語、入力欄で新規語を送る */}
+              {queryTerms.map((term) => (
+                <input key={term} type="hidden" name="q" value={term} />
+              ))}
+              {/* 既存の分野タグ kw を hidden で持ち越し */}
+              {tagTerms.map((tag) => (
+                <input key={tag} type="hidden" name="kw" value={tag} />
+              ))}
               {/* お気に入りフィルタ状態の hidden 持ち越し */}
               {onlyFavorites && (
                 <>
@@ -539,7 +592,7 @@ export default async function LabsPage({ searchParams }: PageProps) {
                   {matchCount}
                 </span>
                 <span>件ヒット（全 {totalCount} 件中）</span>
-                {selectedKeywords.length >= 2 && (
+                {(queryTerms.length >= 2 || tagTerms.length >= 2) && (
                   <span className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-gray-600 dark:text-gray-400">
                     {mode === "and" ? "AND" : "OR"}
                   </span>
@@ -652,7 +705,7 @@ export default async function LabsPage({ searchParams }: PageProps) {
                           <TagChip
                             key={tag}
                             tag={tag}
-                            href={toggleKeywordHref(tag)}
+                            href={toggleTagHref(tag)}
                           />
                         ))}
                         {lab.tags.length > 8 && (
