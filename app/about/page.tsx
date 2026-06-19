@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getSiteStats } from "@/lib/stats";
 
 export const metadata = {
   title: "このサイトについて",
@@ -7,7 +8,14 @@ export const metadata = {
   alternates: { canonical: "/about" },
 };
 
-export default function AboutPage() {
+// 収録数を DB から動的に出すため 6 時間ごとに再生成（ingest cron と同周期）。
+// これにより取り込みが進むたびに本文の数字が自動で最新化される。
+export const revalidate = 21600;
+
+export default async function AboutPage() {
+  const stats = await getSiteStats();
+  const labApprox = Math.floor(stats.labCount / 100) * 100; // 「約 N 件」用に下 2 桁を丸める
+  const workMan = (stats.workCount / 10000).toFixed(1); // 万件
   return (
     <main className="max-w-3xl mx-auto px-6 py-12 text-gray-800 dark:text-gray-200">
       <nav className="mb-6 text-sm">
@@ -37,10 +45,10 @@ export default function AboutPage() {
           対象範囲（現時点）
         </h2>
         <p className="text-gray-700 dark:text-gray-300 leading-relaxed mb-3">
-          MVP として 9 大学・約 1,800
-          研究室を取り込み済みです（東京大学が中心）。
-          GitHub Actions の自動 ingest で 6 時間おきに 1 大学を追加していく運用で、約 2 週間で旧帝大・主要国公私立 50
-          校弱まで拡大予定です。
+          現在 約 {labApprox.toLocaleString()} 研究室・{workMan} 万件の論文を収録しています（
+          {stats.completedCount} 機関の取り込みが完了）。GitHub Actions
+          の自動取り込みが数時間おきに動いており、主要大学から順に対象を広げています。
+          最終的には全国の主要大学と公的研究機関のカバーを目指します。
         </p>
         <ul className="list-disc pl-5 space-y-2 text-gray-700 dark:text-gray-300">
           <li>
@@ -188,8 +196,8 @@ export default function AboutPage() {
               Q. データの更新頻度はどれくらいですか？
             </h3>
             <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-              GitHub Actions の cron で 6 時間おきに 1 大学を ingest しています（取り込み済みのラボは毎時の monitor で確認）。
-              既存ラボの論文・タグも順次再計算されます。初期構築フェーズが終わったら頻度を下げる予定です。
+              GitHub Actions の自動処理が数時間おきに動き、新しい大学・研究機関を順に取り込んでいます。
+              既存ラボの論文・タグ・AI 要約も随時更新します。主要大学のカバーが一段落したら頻度を下げる予定です。
             </p>
           </div>
           <div>
