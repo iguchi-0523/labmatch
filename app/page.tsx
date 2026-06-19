@@ -23,9 +23,11 @@ export default async function Home() {
         "@id": `${SITE_URL}/#website`,
         url: SITE_URL,
         name: SITE_NAME,
+        alternateName: ["labmatch", "labmatch.jp", "ラボマッチ"],
         inLanguage: "ja",
         description:
           "日本の大学・研究機関の研究室を分野・大学・キーワードから検索できるサイト。",
+        publisher: { "@id": `${SITE_URL}/#org` },
         potentialAction: {
           "@type": "SearchAction",
           target: {
@@ -39,6 +41,7 @@ export default async function Home() {
         "@type": "Organization",
         "@id": `${SITE_URL}/#org`,
         name: SITE_NAME,
+        alternateName: ["labmatch", "labmatch.jp"],
         url: SITE_URL,
       },
     ],
