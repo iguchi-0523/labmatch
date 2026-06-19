@@ -4,14 +4,17 @@ import { prisma } from "./db";
  * 関連研究室レコメンド：
  *
  * - 「ある研究室と関連した研究をしているラボ」のスコアリング
- * - 入力ラボのタグ・primaryFieldCode のみを基にスコア計算
+ * - 共有タグを IDF（希少さ）で重み付けして合算
  *
- * スコアモデル（直感的、調整可能）:
- *   - 共有タグ 1 件 = +2
- *   - 同じ primaryFieldCode = +5
+ * スコアモデル:
+ *   - 共有タグ 1 件 = そのタグの IDF = ln(全ラボ数 / そのタグを持つラボ数)
+ *     「生物学」のように 9 割が持つタグはほぼ 0 点、「有機合成」のように
+ *     1% しか持たないタグは高得点。専門が近いほど上位に来る。
+ *   - 同じ primaryFieldCode = 小さなタイブレーク加点
  *
- * 注: 旧モデルにあった「同じ大学 = +1」は撤去。同じ大学の他ラボが上位を
- * 占めてしまい、研究内容の関連度が薄れる弊害を避けるため。
+ * 旧モデルの「共有タグ数 × 2」は、ほぼ全ラボが持つ広いタグ（生物学・分子・
+ * 医学など）を共有しただけのラボを過大評価していたため IDF に置き換えた。
+ * 同じ大学ボーナスは以前に撤去済み。
  */
 
 export interface RelatedSeed {
@@ -20,6 +23,50 @@ export interface RelatedSeed {
   primaryFieldCode: string | null;
   universityId: number;
 }
+
+// ----- タグ IDF（希少さ）キャッシュ -----
+
+interface TagIdf {
+  total: number;
+  df: Map<string, number>;
+  /** 未知タグも含めて IDF を返す。df が無いタグは最大重み扱い。 */
+  idf: (tag: string) => number;
+}
+
+let idfCache: { value: TagIdf; at: number } | null = null;
+const IDF_TTL_MS = 60 * 60 * 1000; // 1 時間
+
+/**
+ * 全ラボのタグ出現数（df）を集計して IDF を引けるようにする。
+ * 1 時間キャッシュ（ingest で増えても精度に大きな影響は出ない粒度）。
+ */
+async function getTagIdf(): Promise<TagIdf> {
+  const now = Date.now();
+  if (idfCache && now - idfCache.at < IDF_TTL_MS) return idfCache.value;
+
+  const rows = await prisma.$queryRaw<{ tag: string; df: bigint }[]>`
+    SELECT tag, COUNT(*)::bigint AS df
+    FROM (SELECT unnest(tags) AS tag FROM labs WHERE deleted_at IS NULL) t
+    GROUP BY tag`;
+  const total = await prisma.lab.count({ where: { deletedAt: null } });
+  const df = new Map<string, number>();
+  for (const r of rows) df.set(r.tag, Number(r.df));
+
+  const value: TagIdf = {
+    total,
+    df,
+    idf: (tag: string) => {
+      const d = df.get(tag) ?? 1;
+      // ln(total / d)。total/d が 1 未満になっても 0 で下げ止め。
+      return Math.max(0, Math.log(total / d));
+    },
+  };
+  idfCache = { value, at: now };
+  return value;
+}
+
+/** 同じ分野（primaryFieldCode 一致）のタイブレーク加点。希少タグ 1 個ぶん未満に抑える。 */
+const SAME_FIELD_BONUS = 0.5;
 
 export interface RelatedLab {
   id: number;
@@ -68,22 +115,28 @@ export async function getRelatedLabs(
     }));
   }
 
-  // 候補: 共有タグまたは同 field
+  const { idf } = await getTagIdf();
+
+  // 候補集合は seed の「希少なタグ」で絞る。生物学のような広いタグで集めると
+  // 候補が膨れて専門の近いラボが CANDIDATE_LIMIT に埋もれるため、IDF の高い
+  // 上位 12 タグだけをマッチ条件に使う（スコア計算は全共有タグで行う）。
+  const discriminative = [...seed.tags]
+    .sort((a, b) => idf(b) - idf(a))
+    .slice(0, 12);
+  const matchTags = discriminative.length > 0 ? discriminative : seed.tags;
+
   const candidates = await prisma.lab.findMany({
     where: {
       id: { not: seed.id },
       deletedAt: null,
-      OR: [
-        seed.primaryFieldCode
-          ? { primaryFieldCode: seed.primaryFieldCode }
-          : { id: { in: [] } },
-        seed.tags.length > 0 ? { tags: { hasSome: seed.tags } } : { id: { in: [] } },
-      ],
+      tags: { hasSome: matchTags },
     },
     include: {
       university: { select: { id: true, name: true } },
       _count: { select: { works: true } },
     },
+    // 上限に当たった場合でも論文数のある実体ラボを残す
+    orderBy: { works: { _count: "desc" } },
     take: CANDIDATE_LIMIT,
   });
 
@@ -91,11 +144,11 @@ export async function getRelatedLabs(
 
   const scored = candidates.map((c) => {
     const sharedTags = c.tags.filter((t) => seedTagSet.has(t));
+    const tagScore = sharedTags.reduce((s, t) => s + idf(t), 0);
     const sameField =
       seed.primaryFieldCode && c.primaryFieldCode === seed.primaryFieldCode
-        ? 5
+        ? SAME_FIELD_BONUS
         : 0;
-    const score = sharedTags.length * 2 + sameField;
     return {
       id: c.id,
       name: c.name,
@@ -106,14 +159,14 @@ export async function getRelatedLabs(
       tags: c.tags,
       university: c.university,
       _count: c._count,
-      score,
-      sharedTags,
+      score: tagScore + sameField,
+      // 表示用の共通タグは希少な順に並べ、専門的なものが先に見えるように
+      sharedTags: [...sharedTags].sort((a, b) => idf(b) - idf(a)),
     };
   });
 
   scored.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;
-    // 同点時は works 数（多い方を上）
     return b._count.works - a._count.works;
   });
 
@@ -141,15 +194,17 @@ export async function getRecommendedFromFavorites(
   });
   if (fav.length === 0) return [];
 
-  // タグの出現頻度集計
+  const { idf } = await getTagIdf();
+
+  // お気に入り横断でタグの出現回数を集計。お気に入り内で繰り返し現れるタグを
+  // 「興味の核」とみなし、出現回数 × IDF で重みを付ける。
   const tagCount = new Map<string, number>();
   for (const f of fav) {
     for (const t of f.tags) tagCount.set(t, (tagCount.get(t) ?? 0) + 1);
   }
-  const aggregatedTags = [...tagCount.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 20)
-    .map((x) => x[0]);
+  const tagWeight = new Map<string, number>();
+  for (const [t, c] of tagCount) tagWeight.set(t, c * idf(t));
+  const aggregatedTags = [...tagWeight.keys()];
 
   // 最も多い primaryFieldCode を採用
   const fieldCount = new Map<string, number>();
@@ -162,30 +217,38 @@ export async function getRecommendedFromFavorites(
   }
   const topField = [...fieldCount.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
 
+  // 候補は重み（出現回数 × IDF）の高い上位タグで絞る
+  const matchTags = [...tagWeight.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 15)
+    .map((x) => x[0]);
+
   const candidates = await prisma.lab.findMany({
     where: {
       id: { notIn: favLabIds },
       deletedAt: null,
-      OR: [
-        topField ? { primaryFieldCode: topField } : { id: { in: [] } },
-        aggregatedTags.length > 0
-          ? { tags: { hasSome: aggregatedTags } }
-          : { id: { in: [] } },
-      ],
+      ...(matchTags.length > 0
+        ? { tags: { hasSome: matchTags } }
+        : topField
+          ? { primaryFieldCode: topField }
+          : { id: { in: [] } }),
     },
     include: {
       university: { select: { id: true, name: true } },
       _count: { select: { works: true } },
     },
+    orderBy: { works: { _count: "desc" } },
     take: CANDIDATE_LIMIT * 2,
   });
 
-  const aggTagSet = new Set(aggregatedTags);
   const scored = candidates.map((c) => {
-    const sharedTags = c.tags.filter((t) => aggTagSet.has(t));
+    const sharedTags = c.tags.filter((t) => tagWeight.has(t));
+    const tagScore = sharedTags.reduce(
+      (s, t) => s + (tagWeight.get(t) ?? 0),
+      0,
+    );
     const sameField =
-      topField && c.primaryFieldCode === topField ? 5 : 0;
-    const score = sharedTags.length * 2 + sameField;
+      topField && c.primaryFieldCode === topField ? SAME_FIELD_BONUS : 0;
     return {
       id: c.id,
       name: c.name,
@@ -196,8 +259,8 @@ export async function getRecommendedFromFavorites(
       tags: c.tags,
       university: c.university,
       _count: c._count,
-      score,
-      sharedTags,
+      score: tagScore + sameField,
+      sharedTags: [...sharedTags].sort((a, b) => idf(b) - idf(a)),
     };
   });
 
@@ -214,8 +277,8 @@ export async function getRecommendedFromFavorites(
  * 検索結果ページの「おすすめ順」並べ替えで再利用するため切り出した。
  */
 export interface FavoriteProfile {
-  /** 重複出現回数で重み付けした上位 20 タグ */
-  aggregatedTags: string[];
+  /** タグ → 重み（お気に入り内の出現回数 × IDF）。希少で頻出のタグほど重い。 */
+  tagWeight: Map<string, number>;
   /** 最も多く現れた primaryFieldCode（無ければ null） */
   topField: string | null;
   /** お気に入り ID（自分を結果から除外するため） */
@@ -226,25 +289,21 @@ export async function buildFavoriteProfile(
   favIds: number[],
 ): Promise<FavoriteProfile | null> {
   if (favIds.length === 0) return null;
-  const fav = await prisma.lab.findMany({
-    where: { id: { in: favIds }, deletedAt: null },
-    select: {
-      id: true,
-      tags: true,
-      primaryFieldCode: true,
-      universityId: true,
-    },
-  });
+  const [fav, { idf }] = await Promise.all([
+    prisma.lab.findMany({
+      where: { id: { in: favIds }, deletedAt: null },
+      select: { id: true, tags: true, primaryFieldCode: true },
+    }),
+    getTagIdf(),
+  ]);
   if (fav.length === 0) return null;
 
   const tagCount = new Map<string, number>();
   for (const f of fav) {
     for (const t of f.tags) tagCount.set(t, (tagCount.get(t) ?? 0) + 1);
   }
-  const aggregatedTags = [...tagCount.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 20)
-    .map((x) => x[0]);
+  const tagWeight = new Map<string, number>();
+  for (const [t, c] of tagCount) tagWeight.set(t, c * idf(t));
 
   const fieldCount = new Map<string, number>();
   for (const f of fav) {
@@ -257,18 +316,13 @@ export async function buildFavoriteProfile(
   const topField =
     [...fieldCount.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
 
-  return {
-    aggregatedTags,
-    topField,
-    seedIds: new Set(favIds),
-  };
+  return { tagWeight, topField, seedIds: new Set(favIds) };
 }
 
 /**
  * 任意のラボにプロファイルを当ててスコアを計算する。
  * - お気に入り自身は -1（リストの末尾に追いやる）
- * - スコアモデル：共有タグ × 2 + 同分野 × 5
- *   （同大学ボーナスは「同じ大学の別ラボばかり上位を占める」弊害があったため撤去）
+ * - スコア：共有タグの重み（出現回数 × IDF）合計 + 同分野の小さな加点
  */
 export function scoreLabByProfile(
   lab: {
@@ -279,9 +333,11 @@ export function scoreLabByProfile(
   profile: FavoriteProfile,
 ): number {
   if (profile.seedIds.has(lab.id)) return -1;
-  const tagSet = new Set(profile.aggregatedTags);
-  const sharedTags = lab.tags.filter((t) => tagSet.has(t)).length;
+  let tagScore = 0;
+  for (const t of lab.tags) tagScore += profile.tagWeight.get(t) ?? 0;
   const sameField =
-    profile.topField && lab.primaryFieldCode === profile.topField ? 5 : 0;
-  return sharedTags * 2 + sameField;
+    profile.topField && lab.primaryFieldCode === profile.topField
+      ? SAME_FIELD_BONUS
+      : 0;
+  return tagScore + sameField;
 }
