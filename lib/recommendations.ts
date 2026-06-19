@@ -174,9 +174,14 @@ export async function getRelatedLabs(
 }
 
 /**
- * 複数ラボの集合（お気に入り）に対し、それらの傾向と関連する研究室を返す。
- * - すべての seed の tags を結合（重複タグは出現回数で重み付け）
- * - primaryFieldCode は最も頻出するものを採用
+ * 複数ラボの集合（お気に入り）に対し、それらに共通する興味と関連する研究室を返す。
+ *
+ * 重み付けの考え方：
+ *   tagWeight = (お気に入り何件に出たか)^2 × IDF
+ *   出現件数を二乗で効かせることで、「複数のお気に入りに共通して現れるタグ」を
+ *   1 件にしか出ないタグより強く優遇する。IDF で広いタグ（生物学など）は抑える。
+ *   例：5 件中 3 件に出る専門タグ（3^2=9）は、1 件だけの希少タグ（1^2=1）を上回る。
+ *   お気に入りが 1 件のときは全タグ count=1 で、単一ラボの関連度と同じ挙動になる。
  */
 export async function getRecommendedFromFavorites(
   favLabIds: number[],
@@ -196,15 +201,17 @@ export async function getRecommendedFromFavorites(
 
   const { idf } = await getTagIdf();
 
-  // お気に入り横断でタグの出現回数を集計。お気に入り内で繰り返し現れるタグを
-  // 「興味の核」とみなし、出現回数 × IDF で重みを付ける。
+  // お気に入り横断でタグが「何件のお気に入りに出たか」を数える
+  // （1 ラボ内の重複は 1 と数えるため Set で集計）。
   const tagCount = new Map<string, number>();
   for (const f of fav) {
-    for (const t of f.tags) tagCount.set(t, (tagCount.get(t) ?? 0) + 1);
+    for (const t of new Set(f.tags)) {
+      tagCount.set(t, (tagCount.get(t) ?? 0) + 1);
+    }
   }
+  // 共通して現れるほど効くよう出現件数を二乗、希少さで IDF を掛ける
   const tagWeight = new Map<string, number>();
-  for (const [t, c] of tagCount) tagWeight.set(t, c * idf(t));
-  const aggregatedTags = [...tagWeight.keys()];
+  for (const [t, c] of tagCount) tagWeight.set(t, c * c * idf(t));
 
   // 最も多い primaryFieldCode を採用
   const fieldCount = new Map<string, number>();
@@ -298,12 +305,15 @@ export async function buildFavoriteProfile(
   ]);
   if (fav.length === 0) return null;
 
+  // 何件のお気に入りに出たか（1 ラボ内重複は 1）。共通タグを二乗で優遇し IDF を掛ける。
   const tagCount = new Map<string, number>();
   for (const f of fav) {
-    for (const t of f.tags) tagCount.set(t, (tagCount.get(t) ?? 0) + 1);
+    for (const t of new Set(f.tags)) {
+      tagCount.set(t, (tagCount.get(t) ?? 0) + 1);
+    }
   }
   const tagWeight = new Map<string, number>();
-  for (const [t, c] of tagCount) tagWeight.set(t, c * idf(t));
+  for (const [t, c] of tagCount) tagWeight.set(t, c * c * idf(t));
 
   const fieldCount = new Map<string, number>();
   for (const f of fav) {
