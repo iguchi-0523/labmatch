@@ -43,6 +43,22 @@ export function Footer() {
                   このサイトについて
                 </Link>
               </li>
+              <li>
+                <Link
+                  href="/privacy"
+                  className="text-gray-700 dark:text-gray-200 hover:text-blue-700 dark:hover:text-blue-300 hover:underline"
+                >
+                  プライバシーポリシー
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/terms"
+                  className="text-gray-700 dark:text-gray-200 hover:text-blue-700 dark:hover:text-blue-300 hover:underline"
+                >
+                  利用規約
+                </Link>
+              </li>
             </ul>
           </div>
           <div>
