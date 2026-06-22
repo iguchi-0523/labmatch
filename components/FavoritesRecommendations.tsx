@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { FAVORITES_EVENT, getFavorites } from "@/lib/favorites-client";
 import { FIELD_LABEL_BY_CODE } from "@/lib/field-labels";
 import type { RelatedLab } from "@/lib/recommendations";
+import { useT } from "./LocaleProvider";
 
 interface Props {
   /** 取得上限（API に渡す） */
@@ -37,6 +38,7 @@ export function FavoritesRecommendations({
   const [ids, setIds] = useState<number[] | null>(null);
   const [labs, setLabs] = useState<RelatedLab[]>([]);
   const [loading, setLoading] = useState(false);
+  const { locale, t } = useT();
 
   useEffect(() => {
     const update = () => setIds(getFavorites());
@@ -80,13 +82,15 @@ export function FavoritesRecommendations({
       <div
         className={`text-sm text-gray-500 dark:text-gray-400 py-6 text-center bg-gray-50 dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-800 ${className}`}
       >
-        お気に入りに登録された研究室はまだありません。
+        {locale === "ja"
+          ? "お気に入りに登録された研究室はまだありません。"
+          : "No favorite labs yet."}
         <br />
         <Link
           href="/labs"
           className="text-blue-600 dark:text-blue-400 hover:underline"
         >
-          研究室を探す →
+          {locale === "ja" ? "研究室を探す →" : "Find labs →"}
         </Link>
       </div>
     );
@@ -106,7 +110,9 @@ export function FavoritesRecommendations({
                 {heading}
                 {showCount && (
                   <span className="ml-2 text-sm text-gray-500 dark:text-gray-400 font-normal">
-                    （お気に入り {ids.length} 件から）
+                    {locale === "ja"
+                      ? `（お気に入り ${ids.length} 件から）`
+                      : `(from ${ids.length} favorites)`}
                   </span>
                 )}
               </h2>
@@ -122,18 +128,20 @@ export function FavoritesRecommendations({
               href="/favorites"
               className="text-xs text-blue-600 dark:text-blue-400 hover:underline shrink-0"
             >
-              お気に入り一覧 →
+              {locale === "ja" ? "お気に入り一覧 →" : "All favorites →"}
             </Link>
           )}
         </div>
       )}
       {loading ? (
         <p className="text-sm text-gray-500 dark:text-gray-400 py-6 text-center">
-          読み込み中…
+          {locale === "ja" ? "読み込み中…" : "Loading…"}
         </p>
       ) : labs.length === 0 ? (
         <p className="text-sm text-gray-500 dark:text-gray-400 py-6 text-center bg-gray-50 dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-800">
-          関連する研究室が見つかりませんでした。お気に入りを増やすと精度が上がります。
+          {locale === "ja"
+            ? "関連する研究室が見つかりませんでした。お気に入りを増やすと精度が上がります。"
+            : "No related labs found. Adding more favorites improves accuracy."}
         </p>
       ) : (
         <ul
@@ -159,7 +167,7 @@ export function FavoritesRecommendations({
                       <div
                         className={`${isHero ? "font-semibold text-sm" : "font-medium text-sm"} text-gray-900 dark:text-gray-100 leading-snug`}
                       >
-                        {lab.professorName} 研究室
+                        {lab.professorName} {t.lab}
                       </div>
                       <div className="text-xs text-gray-700 dark:text-gray-300 mt-0.5">
                         {lab.university.name}
@@ -177,14 +185,19 @@ export function FavoritesRecommendations({
                     )}
                   </div>
                   <div className="mt-1.5 flex items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
-                    <span>論文 {lab._count.works} 件</span>
+                    <span>
+                      {locale === "ja"
+                        ? `論文 ${lab._count.works} 件`
+                        : `${lab._count.works} papers`}
+                    </span>
                     {lab.sharedTags.length > 0 && (
                       <>
                         <span className="text-gray-300 dark:text-gray-600">
                           ·
                         </span>
                         <span className="text-blue-700 dark:text-blue-300 truncate">
-                          共通: {lab.sharedTags.slice(0, 4).join(", ")}
+                          {locale === "ja" ? "共通: " : "Shared: "}
+                          {lab.sharedTags.slice(0, 4).join(", ")}
                           {lab.sharedTags.length > 4 &&
                             ` +${lab.sharedTags.length - 4}`}
                         </span>

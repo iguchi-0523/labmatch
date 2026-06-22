@@ -10,6 +10,8 @@ import { SortSelect } from "@/components/SortSelect";
 import { TagChip } from "@/components/TagChip";
 import { UniversityTreeFilter } from "@/components/UniversityTreeFilter";
 import { FIELD_LABEL_BY_CODE } from "@/lib/field-labels";
+import { getI18n } from "@/lib/i18n-server";
+import { interpolate } from "@/lib/i18n";
 import { buildFavoriteProfile, scoreLabByProfile } from "@/lib/recommendations";
 
 export const dynamic = "force-dynamic";
@@ -129,6 +131,7 @@ function buildTagCondition(tag: string): Prisma.LabWhereInput {
 
 export default async function LabsPage({ searchParams }: PageProps) {
   const params = await searchParams;
+  const { locale, t } = await getI18n();
   // フリーテキスト検索（研究室名・主宰者・AI 要約・論文タイトル）。`q` に集約。
   const queryTerms = Array.from(
     new Set(
@@ -358,12 +361,12 @@ export default async function LabsPage({ searchParams }: PageProps) {
     <main className="min-h-screen px-6 py-10 max-w-7xl mx-auto">
       <nav className="mb-4 text-sm">
         <Link href="/" className="text-blue-600 hover:underline">
-          ← トップ
+          {t.toTop}
         </Link>
       </nav>
-      <h1 className="text-3xl font-bold mb-2 text-gray-900 dark:text-gray-100">研究室検索</h1>
+      <h1 className="text-3xl font-bold mb-2 text-gray-900 dark:text-gray-100">{t.labsTitle}</h1>
       <p className="text-sm text-gray-600 dark:text-gray-400 mb-8">
-        キーワード・分野・大学などで絞り込み。複数キーワードは AND / OR で組合せ可。
+        {t.labsIntro}
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-[320px_1fr] gap-8">
@@ -380,26 +383,25 @@ export default async function LabsPage({ searchParams }: PageProps) {
                 className="block text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2"
                 htmlFor="q-input"
               >
-                キーワード検索
+                {t.kwSearch}
               </label>
               <input
                 id="q-input"
                 type="text"
                 name="q"
                 defaultValue=""
-                placeholder="例: ゲノム編集"
+                placeholder={t.kwPlaceholder}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5 leading-relaxed">
-                研究室名・主宰者・AI 要約・論文タイトル（日本語/英語）を対象。
-                入力して「絞り込む」で追加されます。
+                {t.kwHelp}
               </p>
 
               {/* 選択中のフリーテキスト語 */}
               {queryTerms.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mt-3 p-2.5 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded">
                   <span className="text-xs text-blue-900 dark:text-blue-200 self-center mr-1 font-medium">
-                    キーワード:
+                    {t.kwSelected}
                   </span>
                   {queryTerms.map((term) => (
                     <Link
@@ -407,7 +409,7 @@ export default async function LabsPage({ searchParams }: PageProps) {
                       href={removeQueryHref(term)}
                       scroll={false}
                       className="text-xs px-2 py-0.5 bg-white dark:bg-gray-800 border border-blue-300 dark:border-blue-700 rounded text-blue-900 dark:text-blue-200 hover:bg-blue-100 dark:hover:bg-blue-900/50 inline-flex items-center gap-1"
-                      title="クリックで削除"
+                      title={locale === "ja" ? "クリックで削除" : "Click to remove"}
                     >
                       {term} <span className="text-blue-500 dark:text-blue-400">×</span>
                     </Link>
@@ -419,7 +421,7 @@ export default async function LabsPage({ searchParams }: PageProps) {
               {tagTerms.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mt-2 p-2.5 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 rounded">
                   <span className="text-xs text-emerald-900 dark:text-emerald-200 self-center mr-1 font-medium">
-                    分野タグ:
+                    {t.tagSelected}
                   </span>
                   {tagTerms.map((tag) => (
                     <Link
@@ -427,7 +429,7 @@ export default async function LabsPage({ searchParams }: PageProps) {
                       href={toggleTagHref(tag)}
                       scroll={false}
                       className="text-xs px-2 py-0.5 bg-white dark:bg-gray-800 border border-emerald-300 dark:border-emerald-700 rounded text-emerald-900 dark:text-emerald-200 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 inline-flex items-center gap-1"
-                      title="クリックで削除"
+                      title={locale === "ja" ? "クリックで削除" : "Click to remove"}
                     >
                       {tag} <span className="text-emerald-500 dark:text-emerald-400">×</span>
                     </Link>
@@ -469,21 +471,21 @@ export default async function LabsPage({ searchParams }: PageProps) {
 
             {/* お気に入り絞り込み */}
             <div>
-              <h3 className="text-sm font-semibold text-gray-900 mb-2">
-                お気に入り
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                {t.favorites}
               </h3>
               <FavoritesFilter />
             </div>
 
             {/* キーワードツリー */}
             <div>
-              <h3 className="text-sm font-semibold text-gray-900 mb-2">
-                キーワード階層
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                {t.sectKeywordTree}
               </h3>
               <p className="text-xs text-gray-500 mb-2 leading-relaxed">
-                クリックでそのラベルをタグとして選択。
-                AND 絞り込みでは上位ラベルだけでもその階層でマッチします。
-                ▶ で開閉、☑/◧/☐ で選択状態を表示。
+                {locale === "ja"
+                  ? "クリックでそのラベルをタグとして選択。AND 絞り込みでは上位ラベルだけでもその階層でマッチします。▶ で開閉、☑/◧/☐ で選択状態を表示。"
+                  : "Click a label to use it as a tag. With AND, a parent label matches its whole branch. ▶ expands; ☑/◧/☐ show selection state."}
               </p>
               <KeywordTreeFilter />
             </div>
@@ -497,14 +499,15 @@ export default async function LabsPage({ searchParams }: PageProps) {
             {/* 大学：国立 / 公立 / 私学 → 個別大学 */}
             <details open className="group">
               <summary className="cursor-pointer list-none text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2 flex items-center justify-between">
-                <span>大学</span>
+                <span>{t.sectUniversity}</span>
                 <span className="text-gray-400 text-xs group-open:rotate-90 transition-transform">
                   ▶
                 </span>
               </summary>
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 leading-relaxed">
-                区分（国立／公立／私学／研究機関）をクリックでその区分の機関を一括選択。
-                ▶ で開閉。
+                {locale === "ja"
+                  ? "区分（国立／公立／私学／研究機関）をクリックでその区分の機関を一括選択。▶ で開閉。"
+                  : "Click a category (national / public / private / institute) to select all of its institutions. ▶ toggles."}
               </p>
               <UniversityTreeFilter
                 universities={universities.map((u) => ({
@@ -523,14 +526,15 @@ export default async function LabsPage({ searchParams }: PageProps) {
             {/* 地方・都道府県 */}
             <details open className="group">
               <summary className="cursor-pointer list-none text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2 flex items-center justify-between">
-                <span>地方・都道府県</span>
+                <span>{t.sectRegion}</span>
                 <span className="text-gray-400 text-xs group-open:rotate-90 transition-transform">
                   ▶
                 </span>
               </summary>
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 leading-relaxed">
-                地方をクリックするとその地方の県を一括選択。
-                ▶ で展開、▼ で閉じる。
+                {locale === "ja"
+                  ? "地方をクリックするとその地方の県を一括選択。▶ で展開、▼ で閉じる。"
+                  : "Click a region to select all its prefectures. ▶ expands, ▼ collapses."}
               </p>
               <PrefectureTreeFilter />
               {/* form submit でも選択を保持するための hidden */}
@@ -542,7 +546,7 @@ export default async function LabsPage({ searchParams }: PageProps) {
             {/* 件数・並び替え */}
             <details open className="group">
               <summary className="cursor-pointer list-none text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2 flex items-center justify-between">
-                <span>その他の条件</span>
+                <span>{t.sectOther}</span>
                 <span className="text-gray-400 text-xs group-open:rotate-90 transition-transform">
                   ▶
                 </span>
@@ -550,7 +554,7 @@ export default async function LabsPage({ searchParams }: PageProps) {
               <div className="space-y-3 mt-2 pl-1">
                 <div>
                   <label className="block text-xs text-gray-700 dark:text-gray-300 mb-1">
-                    論文数（下限）
+                    {t.minWorks}
                   </label>
                   <select
                     name="min"
@@ -559,7 +563,13 @@ export default async function LabsPage({ searchParams }: PageProps) {
                   >
                     {MIN_WORKS_OPTIONS.map((o) => (
                       <option key={o.value} value={o.value}>
-                        {o.label}
+                        {o.value === "0"
+                          ? locale === "ja"
+                            ? "指定なし"
+                            : "Any"
+                          : locale === "ja"
+                            ? `${o.value} 件以上`
+                            : `${o.value}+`}
                       </option>
                     ))}
                   </select>
@@ -577,13 +587,13 @@ export default async function LabsPage({ searchParams }: PageProps) {
                 type="submit"
                 className="flex-1 px-3 py-2.5 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-semibold"
               >
-                絞り込む
+                {t.apply}
               </button>
               <Link
                 href="/labs"
                 className="px-3 py-2.5 border border-gray-300 dark:border-gray-700 rounded text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
               >
-                リセット
+                {t.reset}
               </Link>
             </div>
           </form>
@@ -597,7 +607,11 @@ export default async function LabsPage({ searchParams }: PageProps) {
                 <span className="font-semibold text-lg text-gray-900 dark:text-gray-100">
                   {matchCount}
                 </span>
-                <span>件ヒット（全 {totalCount} 件中）</span>
+                <span>
+                  {locale === "ja"
+                    ? `件ヒット（全 ${totalCount} 件中）`
+                    : `${t.hits} (${interpolate(t.ofTotal, totalCount)})`}
+                </span>
                 {(queryTerms.length >= 2 || tagTerms.length >= 2) && (
                   <span className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-gray-600 dark:text-gray-400">
                     {mode === "and" ? "AND" : "OR"}
@@ -606,50 +620,64 @@ export default async function LabsPage({ searchParams }: PageProps) {
               </>
             ) : (
               <>
-                <span>全</span>
+                {locale === "ja" && <span>全</span>}
                 <span className="font-semibold text-lg text-gray-900 dark:text-gray-100">
                   {totalCount}
                 </span>
-                <span>件</span>
+                <span>{locale === "ja" ? "件" : t.statLabs}</span>
               </>
             )}
             {matchCount > 0 && (
               <span className="text-xs text-gray-500 dark:text-gray-500 ml-auto">
-                {pageStart}〜{pageEnd} 件目を表示
-                {totalPages > 1 && ` / ${totalPages} ページ`}
+                {locale === "ja"
+                  ? `${pageStart}〜${pageEnd} 件目を表示`
+                  : `${pageStart}–${pageEnd}`}
+                {totalPages > 1 &&
+                  (locale === "ja"
+                    ? ` / ${totalPages} ページ`
+                    : ` / ${totalPages} pages`)}
                 {minWorksExcludedOnPage > 0 &&
-                  `（minWorks フィルタによりこのページから ${minWorksExcludedOnPage} 件除外）`}
+                  (locale === "ja"
+                    ? `（minWorks フィルタによりこのページから ${minWorksExcludedOnPage} 件除外）`
+                    : ` (${minWorksExcludedOnPage} hidden by min-papers filter)`)}
               </span>
             )}
           </div>
 
           {recommendNeedsFavorites && (
             <p className="mb-3 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded px-3 py-2">
-              「お気に入りからのおすすめ順」にはお気に入りが必要です。
-              研究室カードの ☆ で追加するか、別の並び替えを選んでください（現在は通常の順序で表示しています）。
+              {locale === "ja"
+                ? "「お気に入りからのおすすめ順」にはお気に入りが必要です。研究室カードの ☆ で追加するか、別の並び替えを選んでください（現在は通常の順序で表示しています）。"
+                : "Sorting by recommendations needs favorites. Add some with the ☆ on lab cards or pick another sort (showing the default order for now)."}
             </p>
           )}
           {recommendActive && (
             <p className="mb-3 text-xs text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded px-3 py-2">
-              お気に入り {favIds.length} 件と共通タグ・同分野・同大学のラボを上位にしています。
+              {locale === "ja"
+                ? `お気に入り ${favIds.length} 件と共通タグ・同分野・同大学のラボを上位にしています。`
+                : `Ranking labs that share tags, field and institution with your ${favIds.length} favorites.`}
               {recommendCapped &&
-                ` ヒットが多いため、論文数の多い上位 ${RECOMMEND_FETCH_CAP.toLocaleString()} 件のみをスコアリング対象としています。`}
+                (locale === "ja"
+                  ? ` ヒットが多いため、論文数の多い上位 ${RECOMMEND_FETCH_CAP.toLocaleString()} 件のみをスコアリング対象としています。`
+                  : ` With many matches, only the top ${RECOMMEND_FETCH_CAP.toLocaleString()} by paper count are scored.`)}
             </p>
           )}
 
           {matchCount === 0 ? (
             <p className="text-gray-500 dark:text-gray-400 py-12 text-center bg-gray-50 dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-800">
-              該当する研究室がありません。条件を変えてみてください。
+              {t.noResults}
             </p>
           ) : labs.length === 0 ? (
             <p className="text-gray-500 dark:text-gray-400 py-12 text-center bg-gray-50 dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-800">
-              このページの研究室はすべて minWorks フィルタで除外されました。
+              {locale === "ja"
+                ? "このページの研究室はすべて minWorks フィルタで除外されました。"
+                : "Every lab on this page was hidden by the min-papers filter."}
               <br />
               <Link
                 href={pageHref(1)}
                 className="text-blue-600 dark:text-blue-400 hover:underline"
               >
-                1 ページ目に戻る
+                {locale === "ja" ? "1 ページ目に戻る" : "Back to page 1"}
               </Link>
             </p>
           ) : (
@@ -668,7 +696,7 @@ export default async function LabsPage({ searchParams }: PageProps) {
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <div className="font-semibold text-base text-gray-900 dark:text-gray-100 leading-snug">
-                            {lab.professorName} 研究室
+                            {lab.professorName} {t.lab}
                           </div>
                           <div className="text-sm text-gray-700 dark:text-gray-300 mt-1">
                             {lab.university.parent ? (
@@ -702,7 +730,7 @@ export default async function LabsPage({ searchParams }: PageProps) {
                         </div>
                       </div>
                       <div className="text-xs text-gray-500 dark:text-gray-500 mt-2 flex items-center gap-2">
-                        <span>論文 {lab._count.works} 件</span>
+                        <span>{interpolate(t.worksCount, lab._count.works)}</span>
                       </div>
                     </Link>
                     {lab.tags.length > 0 && (
@@ -729,23 +757,23 @@ export default async function LabsPage({ searchParams }: PageProps) {
 
           {totalPages > 1 && (
             <nav
-              aria-label="ページ送り"
+              aria-label={locale === "ja" ? "ページ送り" : "Pagination"}
               className="mt-8 flex items-center justify-center gap-1 flex-wrap text-sm"
             >
               {currentPage > 1 ? (
                 <Link
                   href={pageHref(currentPage - 1)}
                   className="px-3 py-1.5 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:border-blue-400"
-                  aria-label="前のページ"
+                  aria-label={locale === "ja" ? "前のページ" : "Previous page"}
                 >
-                  ← 前へ
+                  {locale === "ja" ? "← 前へ" : "← Prev"}
                 </Link>
               ) : (
                 <span
                   className="px-3 py-1.5 border border-gray-200 dark:border-gray-800 rounded text-gray-400 dark:text-gray-600 cursor-not-allowed"
                   aria-disabled="true"
                 >
-                  ← 前へ
+                  {locale === "ja" ? "← 前へ" : "← Prev"}
                 </span>
               )}
               {buildPageList(currentPage, totalPages).map((p, idx) =>
@@ -779,16 +807,16 @@ export default async function LabsPage({ searchParams }: PageProps) {
                 <Link
                   href={pageHref(currentPage + 1)}
                   className="px-3 py-1.5 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:border-blue-400"
-                  aria-label="次のページ"
+                  aria-label={locale === "ja" ? "次のページ" : "Next page"}
                 >
-                  次へ →
+                  {locale === "ja" ? "次へ →" : "Next →"}
                 </Link>
               ) : (
                 <span
                   className="px-3 py-1.5 border border-gray-200 dark:border-gray-800 rounded text-gray-400 dark:text-gray-600 cursor-not-allowed"
                   aria-disabled="true"
                 >
-                  次へ →
+                  {locale === "ja" ? "次へ →" : "Next →"}
                 </span>
               )}
             </nav>

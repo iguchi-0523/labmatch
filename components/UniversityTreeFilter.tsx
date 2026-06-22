@@ -7,6 +7,7 @@ import {
   getUniversityByName,
   type UniversityCategory,
 } from "@/lib/universities";
+import { useT } from "./LocaleProvider";
 
 /**
  * 大学・研究機関の階層フィルタ UI（国立 / 公立 / 私学 / 研究機関 → 個別大学の 2 階層）。
@@ -49,6 +50,13 @@ const CATEGORY_DISPLAY: Record<Category, string> = {
   private: CATEGORY_LABEL.private,
   "research-institute": CATEGORY_LABEL["research-institute"],
   other: "その他",
+};
+const CATEGORY_DISPLAY_EN: Record<Category, string> = {
+  national: "National",
+  public: "Public",
+  private: "Private",
+  "research-institute": "Research institute",
+  other: "Other",
 };
 
 const VALID_CATS: Category[] = [
@@ -152,6 +160,9 @@ function CategoryRow({
   const ids = unis.map((u) => u.id);
   const state = groupState(ids, selectedSet);
   const [open, setOpen] = useState(state === "partial");
+  const { locale } = useT();
+  const catDisplay =
+    locale === "ja" ? CATEGORY_DISPLAY : CATEGORY_DISPLAY_EN;
 
   const handleSelectCategory = () => {
     const next = new Set(selectedSet);
@@ -183,7 +194,15 @@ function CategoryRow({
         <button
           type="button"
           onClick={() => setOpen(!open)}
-          aria-label={open ? "閉じる" : "開く"}
+          aria-label={
+            open
+              ? locale === "ja"
+                ? "閉じる"
+                : "Collapse"
+              : locale === "ja"
+                ? "開く"
+                : "Expand"
+          }
           aria-expanded={open}
           className="w-4 h-4 flex items-center justify-center text-gray-500 dark:text-gray-400 text-xs hover:text-blue-600 dark:hover:text-blue-400 transition"
         >
@@ -198,7 +217,7 @@ function CategoryRow({
           <span className="text-xs leading-none w-3 inline-block">
             {INDICATOR[state]}
           </span>
-          <span>{CATEGORY_DISPLAY[category]}</span>
+          <span>{catDisplay[category]}</span>
           <span
             className={`ml-auto text-[10px] ${
               state === "all" ? "text-blue-100" : "text-gray-500 dark:text-gray-400"

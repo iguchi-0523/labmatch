@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useT } from "./LocaleProvider";
 import {
   KEYWORD_TREE,
   type KeywordNode,
@@ -104,6 +105,7 @@ function TreeNodeRow({
   const state = nodeSelectionState(node, selectedSet);
   // partial 状態のノードはデフォルトで開く（選択中の子が見える）
   const [open, setOpen] = useState(initiallyOpen || state === "partial");
+  const { locale } = useT();
 
   const handleSelect = () => {
     const own = getNodeIdentifier(node);
@@ -131,7 +133,15 @@ function TreeNodeRow({
           <button
             type="button"
             onClick={() => setOpen(!open)}
-            aria-label={open ? "閉じる" : "開く"}
+            aria-label={
+              open
+                ? locale === "ja"
+                  ? "閉じる"
+                  : "Collapse"
+                : locale === "ja"
+                  ? "開く"
+                  : "Expand"
+            }
             aria-expanded={open}
             className="w-4 h-4 flex items-center justify-center text-gray-500 dark:text-gray-400 text-xs hover:text-blue-600 dark:hover:text-blue-400 transition"
           >

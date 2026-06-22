@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { Footer } from "@/components/Footer";
+import { LocaleProvider } from "@/components/LocaleProvider";
 import { getInlineScript } from "@/lib/theme-client";
+import { getLocale } from "@/lib/i18n-server";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
 import "./globals.css";
 
@@ -65,14 +67,15 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const locale = await getLocale();
   return (
     <html
-      lang="ja"
+      lang={locale}
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
@@ -81,8 +84,10 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: getInlineScript() }} />
       </head>
       <body className="min-h-full flex flex-col bg-white text-gray-900 dark:bg-gray-950 dark:text-gray-100">
-        <div className="flex-1">{children}</div>
-        <Footer />
+        <LocaleProvider locale={locale}>
+          <div className="flex-1">{children}</div>
+          <Footer />
+        </LocaleProvider>
         <Analytics />
       </body>
     </html>

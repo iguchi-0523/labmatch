@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { FAVORITES_EVENT, getFavorites } from "@/lib/favorites-client";
+import { useT } from "./LocaleProvider";
 
 interface FavoritesNavLinkProps {
   className?: string;
@@ -27,14 +28,15 @@ export function FavoritesNavLink({
   }, []);
 
   const showCount = count !== null && (count > 0 || showZero);
+  const { locale, t } = useT();
 
   return (
     <Link href="/favorites" className={className}>
-      お気に入り
+      {t.favorites}
       {showCount && (
         <span
           className="ml-1 inline-flex items-center justify-center min-w-[1.25rem] px-1 text-xs font-medium bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200 rounded-full"
-          aria-label={`${count} 件のお気に入り`}
+          aria-label={locale === "ja" ? `${count} 件のお気に入り` : `${count} favorites`}
         >
           {count}
         </span>

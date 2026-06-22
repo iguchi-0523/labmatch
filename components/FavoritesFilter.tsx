@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { FAVORITES_EVENT, getFavorites } from "@/lib/favorites-client";
+import { useT } from "./LocaleProvider";
 
 /**
  * 検索結果をお気に入り研究室のみに絞り込むチェックボックス。
@@ -60,6 +61,8 @@ export function FavoritesFilter() {
   const isStale =
     enabled && JSON.stringify([...urlIds].sort()) !== JSON.stringify([...getFavorites()].sort());
 
+  const { locale } = useT();
+
   return (
     <div className="space-y-2">
       <label
@@ -76,9 +79,9 @@ export function FavoritesFilter() {
           disabled={disabled}
         />
         <span>
-          お気に入りのみ
+          {locale === "ja" ? "お気に入りのみ" : "Favorites only"}
           <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">
-            （{favCount} 件登録中）
+            {locale === "ja" ? `（${favCount} 件登録中）` : `(${favCount})`}
           </span>
         </span>
       </label>
@@ -88,7 +91,9 @@ export function FavoritesFilter() {
           onClick={() => navigateWithFavorites(true)}
           className="text-xs text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-300 underline ml-6"
         >
-          お気に入りが更新されています — 検索条件を再同期
+          {locale === "ja"
+            ? "お気に入りが更新されています — 検索条件を再同期"
+            : "Favorites changed — re-sync filter"}
         </button>
       )}
     </div>

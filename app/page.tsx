@@ -2,15 +2,17 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { FavoritesRecommendations } from "@/components/FavoritesRecommendations";
 import { JsonLd } from "@/components/JsonLd";
+import { getI18n } from "@/lib/i18n-server";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const [labCount, workCount, uniCount] = await Promise.all([
+  const [labCount, workCount, uniCount, { locale, t }] = await Promise.all([
     prisma.lab.count({ where: { deletedAt: null } }),
     prisma.work.count(),
     prisma.university.count(),
+    getI18n(),
   ]);
 
   // サイト全体の構造化データ。SearchAction で Google のサイトリンク検索ボックス、
@@ -55,13 +57,13 @@ export default async function Home() {
         {/* ヘッダー */}
         <div className="text-center">
           <h1 className="text-5xl md:text-6xl font-bold mb-3 text-gray-900 dark:text-gray-100 tracking-tight">
-            ラボマッチ
+            {t.brand}
           </h1>
           <p className="text-lg text-gray-700 dark:text-gray-300 mb-1">
-            大学・研究機関の研究室を、分野・キーワードから検索
+            {t.homeTagline}
           </p>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-8">
-            進学先・研究室配属を考える学生のためのサイト
+            {t.homeSubtitle}
           </p>
 
           {/* CTA */}
@@ -70,7 +72,7 @@ export default async function Home() {
               href="/labs"
               className="inline-flex items-center gap-2 px-10 py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-lg shadow-md hover:shadow-lg transition-all"
             >
-              研究室を検索する
+              {t.homeCta}
               <span aria-hidden="true">→</span>
             </Link>
           </div>
@@ -82,8 +84,12 @@ export default async function Home() {
           variant="hero"
           limit={6}
           hideWhenEmpty
-          heading="あなたへのおすすめ"
-          subheading="お気に入りの研究室と共通タグ・同分野のラボから関連度順に表示しています。"
+          heading={locale === "ja" ? "あなたへのおすすめ" : "Recommended for you"}
+          subheading={
+            locale === "ja"
+              ? "お気に入りの研究室と共通タグ・同分野のラボから関連度順に表示しています。"
+              : "Labs related to your favorites, ranked by shared tags and field."
+          }
           showCount
           showFavoritesLink
           className="mb-10 p-5 bg-white/70 dark:bg-gray-900/60 border border-blue-200 dark:border-blue-900 rounded-lg shadow-sm"
@@ -92,9 +98,9 @@ export default async function Home() {
         {/* Stats — 横一列で簡潔 */}
         <div className="grid grid-cols-3 max-w-md mx-auto gap-2 mb-8 text-center">
           {[
-            { value: labCount.toLocaleString(), label: "研究室" },
-            { value: workCount.toLocaleString(), label: "論文" },
-            { value: String(uniCount), label: "大学・機関" },
+            { value: labCount.toLocaleString(), label: t.statLabs },
+            { value: workCount.toLocaleString(), label: t.statWorks },
+            { value: String(uniCount), label: t.statUnis },
           ].map((s) => (
             <div key={s.label}>
               <div className="text-2xl font-bold text-gray-900 dark:text-gray-100 tabular-nums">
@@ -109,42 +115,35 @@ export default async function Home() {
 
         {/* Features — 1 行アイコン付きで省スペース */}
         <ul className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-8 text-sm">
-          <li className="p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded">
-            <div className="font-semibold text-gray-900 dark:text-gray-100 mb-0.5">
-              分野・大学で絞り込み
-            </div>
-            <p className="text-xs text-gray-600 dark:text-gray-400 leading-snug">
-              階層キーワード × 国公私 + 研究機関 × 8 地方の都道府県
-            </p>
-          </li>
-          <li className="p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded">
-            <div className="font-semibold text-gray-900 dark:text-gray-100 mb-0.5">
-              お気に入りから推薦
-            </div>
-            <p className="text-xs text-gray-600 dark:text-gray-400 leading-snug">
-              気になる研究室を★しておくと、傾向の近いラボを自動で表示
-            </p>
-          </li>
-          <li className="p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded">
-            <div className="font-semibold text-gray-900 dark:text-gray-100 mb-0.5">
-              AI による研究内容の要約
-            </div>
-            <p className="text-xs text-gray-600 dark:text-gray-400 leading-snug">
-              直近 5 年の論文を Claude が平易な日本語に再構成
-            </p>
-          </li>
+          {[
+            { title: t.featSearchTitle, body: t.featSearchBody },
+            { title: t.featRecoTitle, body: t.featRecoBody },
+            { title: t.featAiTitle, body: t.featAiBody },
+          ].map((f) => (
+            <li
+              key={f.title}
+              className="p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded"
+            >
+              <div className="font-semibold text-gray-900 dark:text-gray-100 mb-0.5">
+                {f.title}
+              </div>
+              <p className="text-xs text-gray-600 dark:text-gray-400 leading-snug">
+                {f.body}
+              </p>
+            </li>
+          ))}
         </ul>
 
         {/* MVP 注記 */}
         <p className="text-xs text-gray-500 dark:text-gray-500 text-center">
-          MVP 開発中。情報は自動収集と AI 生成に基づくため誤りを含む可能性があります（
+          {t.homeMvpNote}
           <Link
             href="/about"
             className="text-blue-600 dark:text-blue-400 hover:underline"
           >
-            このサイトについて
+            {t.homeMvpNoteAbout}
           </Link>
-          ）。
+          {t.homeMvpNoteEnd}
         </p>
       </div>
     </section>

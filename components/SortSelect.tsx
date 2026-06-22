@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { FAVORITES_EVENT, getFavorites } from "@/lib/favorites-client";
+import { useT } from "./LocaleProvider";
 
 /**
  * 検索結果の並び替えセレクト。即時 URL 反映。
@@ -13,15 +14,8 @@ import { FAVORITES_EVENT, getFavorites } from "@/lib/favorites-client";
  * - お気に入り 0 件のときは「おすすめ順」を disabled
  */
 
-const SORT_OPTIONS = [
-  { value: "works", label: "論文数（多い順）" },
-  { value: "popular", label: "人気順（閲覧が多い順）" },
-  { value: "name", label: "名前順" },
-  { value: "new", label: "新着順" },
-  { value: "recommend", label: "お気に入りからのおすすめ順" },
-] as const;
-
-type SortValue = (typeof SORT_OPTIONS)[number]["value"];
+const SORT_VALUES = ["works", "popular", "name", "new", "recommend"] as const;
+type SortValue = (typeof SORT_VALUES)[number];
 
 export function SortSelect() {
   const router = useRouter();
@@ -57,13 +51,37 @@ export function SortSelect() {
     router.push(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
+  const { locale } = useT();
+  const labels: Record<SortValue, string> =
+    locale === "ja"
+      ? {
+          works: "論文数（多い順）",
+          popular: "人気順（閲覧が多い順）",
+          name: "名前順",
+          new: "新着順",
+          recommend: "お気に入りからのおすすめ順",
+        }
+      : {
+          works: "Most papers",
+          popular: "Most viewed",
+          name: "Name",
+          new: "Newest",
+          recommend: "Recommended from favorites",
+        };
+  const sortByLabel = locale === "ja" ? "並び替え" : "Sort by";
+  const needFavSuffix = locale === "ja" ? "（お気に入りを登録してから）" : " (add favorites first)";
+  const needFavNote =
+    locale === "ja"
+      ? "お気に入りが 0 件です。研究室カードの ☆ で追加してください。"
+      : "No favorites yet. Add some with the ☆ on lab cards.";
+
   return (
     <div>
       <label
         className="block text-xs text-gray-700 dark:text-gray-300 mb-1"
         htmlFor="sort-select"
       >
-        並び替え
+        {sortByLabel}
       </label>
       <select
         id="sort-select"
@@ -71,22 +89,20 @@ export function SortSelect() {
         onChange={(e) => onChange(e.target.value as SortValue)}
         className="w-full px-2 py-1.5 border border-gray-300 dark:border-gray-700 rounded text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
       >
-        {SORT_OPTIONS.map((o) => (
+        {SORT_VALUES.map((v) => (
           <option
-            key={o.value}
-            value={o.value}
-            disabled={o.value === "recommend" && favCount === 0}
+            key={v}
+            value={v}
+            disabled={v === "recommend" && favCount === 0}
           >
-            {o.label}
-            {o.value === "recommend" && favCount === 0
-              ? "（お気に入りを登録してから）"
-              : ""}
+            {labels[v]}
+            {v === "recommend" && favCount === 0 ? needFavSuffix : ""}
           </option>
         ))}
       </select>
       {current === "recommend" && favCount === 0 && (
         <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
-          お気に入りが 0 件です。研究室カードの ☆ で追加してください。
+          {needFavNote}
         </p>
       )}
     </div>

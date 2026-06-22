@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useT } from "./LocaleProvider";
 
 /**
  * キーワード AND/OR モードの切り替え（即時 URL 反映）。
@@ -29,14 +30,16 @@ export function KeywordModeToggle() {
   const inactiveCls =
     "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700";
 
+  const { locale } = useT();
+
   return (
     <fieldset className="mt-3">
       <legend className="text-xs text-gray-600 dark:text-gray-400 mb-1.5">
-        複数キーワードの組合せ
+        {locale === "ja" ? "複数キーワードの組合せ" : "Combine keywords"}
       </legend>
       <div
         role="radiogroup"
-        aria-label="キーワードの組合せモード"
+        aria-label={locale === "ja" ? "キーワードの組合せモード" : "Keyword combine mode"}
         className="inline-flex rounded-md border border-gray-300 dark:border-gray-700 overflow-hidden"
       >
         <button
@@ -46,7 +49,7 @@ export function KeywordModeToggle() {
           onClick={() => setMode("and")}
           className={`${baseCls} ${mode === "and" ? activeCls : inactiveCls}`}
         >
-          AND（すべて含む）
+          {locale === "ja" ? "AND（すべて含む）" : "AND (all)"}
         </button>
         <button
           type="button"
@@ -55,7 +58,7 @@ export function KeywordModeToggle() {
           onClick={() => setMode("or")}
           className={`${baseCls} ${mode === "or" ? activeCls : inactiveCls} border-l border-gray-300 dark:border-gray-700`}
         >
-          OR（いずれか）
+          {locale === "ja" ? "OR（いずれか）" : "OR (any)"}
         </button>
       </div>
     </fieldset>

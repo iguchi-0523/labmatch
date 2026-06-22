@@ -9,12 +9,18 @@ import {
   setStoredTheme,
   type Theme,
 } from "@/lib/theme-client";
+import { useT } from "./LocaleProvider";
 
-const OPTIONS: { value: Theme; label: string; icon: string }[] = [
-  { value: "system", label: "自動", icon: "🖥" },
-  { value: "light", label: "ライト", icon: "☀" },
-  { value: "dark", label: "ダーク", icon: "🌙" },
-];
+const THEME_LABELS: Record<"ja" | "en", Record<Theme, string>> = {
+  ja: { system: "自動", light: "ライト", dark: "ダーク" },
+  en: { system: "Auto", light: "Light", dark: "Dark" },
+};
+const THEME_ICONS: Record<Theme, string> = {
+  system: "🖥",
+  light: "☀",
+  dark: "🌙",
+};
+const THEME_ORDER: Theme[] = ["system", "light", "dark"];
 
 export function ThemeToggle({ className = "" }: { className?: string }) {
   const [mounted, setMounted] = useState(false);
@@ -50,30 +56,33 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
     setStoredTheme(next);
   };
 
+  const { locale } = useT();
+  const labels = THEME_LABELS[locale];
+
   return (
     <div
       className={`inline-flex rounded-md border border-gray-300 dark:border-gray-700 overflow-hidden text-xs ${className}`}
       role="radiogroup"
-      aria-label="表示モード"
+      aria-label={locale === "ja" ? "表示モード" : "Theme"}
     >
-      {OPTIONS.map((opt) => {
-        const active = mounted && theme === opt.value;
+      {THEME_ORDER.map((value) => {
+        const active = mounted && theme === value;
         return (
           <button
-            key={opt.value}
+            key={value}
             type="button"
-            onClick={() => onChange(opt.value)}
+            onClick={() => onChange(value)}
             role="radio"
             aria-checked={active}
-            title={opt.label}
+            title={labels[value]}
             className={`px-2 py-1 flex items-center gap-1 transition-colors ${
               active
                 ? "bg-blue-600 text-white"
                 : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
             }`}
           >
-            <span aria-hidden="true">{opt.icon}</span>
-            <span>{opt.label}</span>
+            <span aria-hidden="true">{THEME_ICONS[value]}</span>
+            <span>{labels[value]}</span>
           </button>
         );
       })}

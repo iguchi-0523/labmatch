@@ -10,6 +10,7 @@ import {
 } from "@/lib/favorites-client";
 import { FIELD_LABEL_BY_CODE } from "@/lib/field-labels";
 import { FavoritesRecommendations } from "@/components/FavoritesRecommendations";
+import { useT } from "@/components/LocaleProvider";
 
 interface FavLab {
   id: number;
@@ -27,6 +28,7 @@ export default function FavoritesPage() {
   const [labs, setLabs] = useState<FavLab[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { locale, t } = useT();
 
   // localStorage → ids
   useEffect(() => {
@@ -73,7 +75,9 @@ export default function FavoritesPage() {
   const onClearAll = () => {
     if (
       window.confirm(
-        "お気に入りをすべて削除します。よろしいですか？（やり直しはできません）",
+        locale === "ja"
+          ? "お気に入りをすべて削除します。よろしいですか？（やり直しはできません）"
+          : "Remove all favorites? This can't be undone.",
       )
     ) {
       clearFavorites();
@@ -84,22 +88,24 @@ export default function FavoritesPage() {
     <main className="min-h-screen px-6 py-10 max-w-5xl mx-auto">
       <nav className="mb-4 text-sm">
         <Link href="/" className="text-blue-600 dark:text-blue-400 hover:underline">
-          ← トップ
+          {t.toTop}
         </Link>
       </nav>
 
       <header className="mb-6 pb-4 border-b border-gray-200 dark:border-gray-800 flex items-baseline justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-            お気に入り
+            {t.favorites}
             {ids !== null && ids.length > 0 && (
               <span className="text-base font-normal text-gray-600 dark:text-gray-400 ml-2">
-                （{ids.length} 件）
+                {locale === "ja" ? `（${ids.length} 件）` : `(${ids.length})`}
               </span>
             )}
           </h1>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-            このブラウザに保存されています。アカウント連携はまだありません。
+            {locale === "ja"
+              ? "このブラウザに保存されています。アカウント連携はまだありません。"
+              : "Saved in this browser. Account sync isn't available yet."}
           </p>
         </div>
         {ids !== null && ids.length > 0 && (
@@ -108,30 +114,34 @@ export default function FavoritesPage() {
             onClick={onClearAll}
             className="text-xs text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 underline"
           >
-            すべて削除
+            {locale === "ja" ? "すべて削除" : "Clear all"}
           </button>
         )}
       </header>
 
       {ids === null || loading ? (
         <p className="text-gray-500 dark:text-gray-400 text-sm py-12 text-center">
-          読み込み中…
+          {locale === "ja" ? "読み込み中…" : "Loading…"}
         </p>
       ) : ids.length === 0 ? (
         <div className="py-12 text-center bg-gray-50 dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-800">
           <p className="text-gray-700 dark:text-gray-300 mb-3">
-            お気に入りに登録された研究室はまだありません。
+            {locale === "ja"
+              ? "お気に入りに登録された研究室はまだありません。"
+              : "No favorite labs yet."}
           </p>
           <Link
             href="/labs"
             className="inline-block px-4 py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700"
           >
-            研究室を探す →
+            {locale === "ja" ? "研究室を探す →" : "Find labs →"}
           </Link>
         </div>
       ) : error ? (
         <p className="text-red-700 dark:text-red-400 text-sm py-8 text-center">
-          読み込みに失敗しました（{error}）。再読み込みしてください。
+          {locale === "ja"
+            ? `読み込みに失敗しました（${error}）。再読み込みしてください。`
+            : `Failed to load (${error}). Please reload.`}
         </p>
       ) : (
         <ul className="space-y-3">
@@ -149,7 +159,7 @@ export default function FavoritesPage() {
                   <div className="flex items-start justify-between gap-3 pr-10">
                     <div className="min-w-0">
                       <div className="font-semibold text-base text-gray-900 dark:text-gray-100 leading-snug">
-                        {lab.professorName} 研究室
+                        {lab.professorName} {t.lab}
                       </div>
                       <div className="text-sm text-gray-700 dark:text-gray-300 mt-1">
                         {lab.university.name}
@@ -167,14 +177,16 @@ export default function FavoritesPage() {
                     )}
                   </div>
                   <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                    論文 {lab._count.works} 件
+                    {locale === "ja"
+                      ? `論文 ${lab._count.works} 件`
+                      : `${lab._count.works} papers`}
                   </div>
                 </Link>
                 <button
                   type="button"
                   onClick={() => onRemove(lab.id)}
-                  aria-label="お気に入りから削除"
-                  title="お気に入りから削除"
+                  aria-label={locale === "ja" ? "お気に入りから削除" : "Remove from favorites"}
+                  title={locale === "ja" ? "お気に入りから削除" : "Remove from favorites"}
                   className="absolute top-3 right-3 w-7 h-7 inline-flex items-center justify-center rounded-full border border-amber-400 bg-amber-50 dark:bg-amber-950/40 text-amber-500 dark:text-amber-400 hover:bg-red-50 dark:hover:bg-red-950/40 hover:border-red-400 hover:text-red-500 transition-colors"
                 >
                   ★
@@ -184,7 +196,9 @@ export default function FavoritesPage() {
           })}
           {ids.length > labs.length && (
             <li className="text-xs text-gray-500 dark:text-gray-400 px-2 py-1">
-              {ids.length - labs.length} 件の研究室は削除されたか見つかりませんでした。
+              {locale === "ja"
+                ? `${ids.length - labs.length} 件の研究室は削除されたか見つかりませんでした。`
+                : `${ids.length - labs.length} lab(s) were removed or not found.`}
             </li>
           )}
         </ul>
@@ -196,8 +210,12 @@ export default function FavoritesPage() {
           <FavoritesRecommendations
             variant="compact"
             limit={12}
-            heading="あなたへのおすすめ"
-            subheading="お気に入りの研究室と共通タグ・同分野のラボから関連度順に表示します。"
+            heading={locale === "ja" ? "あなたへのおすすめ" : "Recommended for you"}
+            subheading={
+              locale === "ja"
+                ? "お気に入りの研究室と共通タグ・同分野のラボから関連度順に表示します。"
+                : "Labs related to your favorites, ranked by shared tags and field."
+            }
             hideWhenEmpty
           />
         </section>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { RelatedLab } from "@/lib/recommendations";
+import type { Locale } from "@/lib/i18n";
 import { FavoriteButton } from "./FavoriteButton";
 
 interface Props {
@@ -7,6 +8,7 @@ interface Props {
   title?: string;
   emptyMessage?: string;
   fieldLabelByCode: Record<string, string>;
+  locale?: Locale;
 }
 
 export function RelatedLabsSection({
@@ -14,14 +16,16 @@ export function RelatedLabsSection({
   title = "関連研究室",
   emptyMessage = "関連する研究室が見つかりませんでした。",
   fieldLabelByCode,
+  locale = "ja",
 }: Props) {
+  const labSuffix = locale === "ja" ? "研究室" : "Lab";
   return (
     <section className="mt-8">
       <h2 className="text-xl font-semibold mb-3 text-gray-900 dark:text-gray-100">
         {title}
         {labs.length > 0 && (
           <span className="ml-2 text-sm text-gray-500 dark:text-gray-400 font-normal">
-            ({labs.length} 件)
+            {locale === "ja" ? `(${labs.length} 件)` : `(${labs.length})`}
           </span>
         )}
       </h2>
@@ -44,7 +48,7 @@ export function RelatedLabsSection({
                   <div className="flex items-start justify-between gap-3 pr-10">
                     <div className="min-w-0">
                       <div className="font-medium text-sm text-gray-900 dark:text-gray-100 leading-snug">
-                        {lab.professorName} 研究室
+                        {lab.professorName} {labSuffix}
                       </div>
                       <div className="text-xs text-gray-700 dark:text-gray-300 mt-0.5">
                         {lab.university.name}
@@ -62,12 +66,17 @@ export function RelatedLabsSection({
                     )}
                   </div>
                   <div className="mt-1.5 flex items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
-                    <span>論文 {lab._count.works} 件</span>
+                    <span>
+                      {locale === "ja"
+                        ? `論文 ${lab._count.works} 件`
+                        : `${lab._count.works} papers`}
+                    </span>
                     {lab.sharedTags.length > 0 && (
                       <>
                         <span className="text-gray-300 dark:text-gray-600">·</span>
                         <span className="text-blue-700 dark:text-blue-300">
-                          共通: {lab.sharedTags.slice(0, 4).join(", ")}
+                          {locale === "ja" ? "共通: " : "Shared: "}
+                          {lab.sharedTags.slice(0, 4).join(", ")}
                           {lab.sharedTags.length > 4 &&
                             ` +${lab.sharedTags.length - 4}`}
                         </span>

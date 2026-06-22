@@ -6,6 +6,7 @@ import {
   getFavorites,
   toggleFavorite,
 } from "@/lib/favorites-client";
+import { useT } from "./LocaleProvider";
 
 type Size = "sm" | "md";
 
@@ -25,6 +26,7 @@ export function FavoriteButton({
 }: FavoriteButtonProps) {
   const [mounted, setMounted] = useState(false);
   const [favorited, setFavorited] = useState(false);
+  const { locale } = useT();
 
   useEffect(() => {
     setMounted(true);
@@ -73,8 +75,24 @@ export function FavoriteButton({
       type="button"
       onClick={onClick}
       aria-pressed={favorited}
-      aria-label={favorited ? "お気に入りから削除" : "お気に入りに追加"}
-      title={favorited ? "お気に入りから削除" : "お気に入りに追加"}
+      aria-label={
+        favorited
+          ? locale === "ja"
+            ? "お気に入りから削除"
+            : "Remove from favorites"
+          : locale === "ja"
+            ? "お気に入りに追加"
+            : "Add to favorites"
+      }
+      title={
+        favorited
+          ? locale === "ja"
+            ? "お気に入りから削除"
+            : "Remove from favorites"
+          : locale === "ja"
+            ? "お気に入りに追加"
+            : "Add to favorites"
+      }
       className={`inline-flex items-center justify-center rounded-full border transition-colors ${sizeCls} ${stateCls} ${className}`}
     >
       {favorited ? "★" : "☆"}

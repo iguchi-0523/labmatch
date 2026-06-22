@@ -213,3 +213,20 @@ model LabReport {
   @@index([reporterEmailDomain])
   @@map("lab_reports")
 }
+
+// サイト全体への問い合わせ（質問・機能要望・その他）。
+// 特定ラボの削除・修正依頼（LabReport）とは別物。ラボに紐づかない。
+model ContactMessage {
+  id        Int      @id @default(autoincrement())
+  email     String
+  category  String   @default("question") // "question" | "feature" | "other"
+  subject   String?
+  body      String
+  locale    String   @default("ja") // 送信時の表示言語
+  status    String   @default("new") // "new" | "read" | "done"
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([status])
+  @@index([category])
+  @@map("contact_messages")
+}

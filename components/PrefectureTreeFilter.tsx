@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useT } from "./LocaleProvider";
 import {
   REGION_TREE,
   regionSelectionState,
@@ -65,6 +66,7 @@ interface RegionRowProps {
 function RegionRow({ region, selectedSet, onToggle }: RegionRowProps) {
   const state = regionSelectionState(region, selectedSet);
   const [open, setOpen] = useState(state === "partial");
+  const { locale } = useT();
 
   const handleSelectRegion = () => {
     const next = new Set(selectedSet);
@@ -96,7 +98,15 @@ function RegionRow({ region, selectedSet, onToggle }: RegionRowProps) {
         <button
           type="button"
           onClick={() => setOpen(!open)}
-          aria-label={open ? "閉じる" : "開く"}
+          aria-label={
+            open
+              ? locale === "ja"
+                ? "閉じる"
+                : "Collapse"
+              : locale === "ja"
+                ? "開く"
+                : "Expand"
+          }
           aria-expanded={open}
           className="w-4 h-4 flex items-center justify-center text-gray-500 dark:text-gray-400 text-xs hover:text-blue-600 dark:hover:text-blue-400 transition"
         >
