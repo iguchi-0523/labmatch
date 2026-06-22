@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { notifyNewReport } from "@/lib/notify";
 
 export interface ReportFormState {
   errors?: {
@@ -54,7 +55,7 @@ export async function submitReport(
   const emailDomain =
     reporterEmail.split("@", 2)[1]?.toLowerCase().trim() ?? "";
 
-  await prisma.labReport.create({
+  const created = await prisma.labReport.create({
     data: {
       labId,
       reporterEmail,
@@ -65,6 +66,9 @@ export async function submitReport(
       status: "pending",
     },
   });
+
+  // 管理者へメール通知（環境変数未設定なら no-op、失敗してもここで握りつぶす）
+  await notifyNewReport(created);
 
   redirect(`/labs/${labId}/report/thanks`);
 }

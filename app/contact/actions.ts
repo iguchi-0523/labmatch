@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { notifyNewContact } from "@/lib/notify";
 
 export interface ContactFormState {
   errors?: { email?: string; category?: string; body?: string };
@@ -28,7 +29,7 @@ export async function submitContact(
   else if (body.length > 4000) errors.body = "too_long";
   if (Object.keys(errors).length > 0) return { errors };
 
-  await prisma.contactMessage.create({
+  const created = await prisma.contactMessage.create({
     data: {
       email,
       category,
@@ -38,6 +39,9 @@ export async function submitContact(
       status: "new",
     },
   });
+
+  // 管理者へメール通知（環境変数未設定なら no-op、失敗してもここで握りつぶす）
+  await notifyNewContact(created);
 
   redirect("/contact/thanks");
 }
