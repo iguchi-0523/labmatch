@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { FAVORITES_EVENT, getFavorites } from "@/lib/favorites-client";
-import { FIELD_LABEL_BY_CODE } from "@/lib/field-labels";
+import { localizeFieldLabel } from "@/lib/labels-en";
 import type { RelatedLab } from "@/lib/recommendations";
 import { useT } from "./LocaleProvider";
 
@@ -152,10 +152,11 @@ export function FavoritesRecommendations({
           }
         >
           {labs.map((lab) => {
-            const fieldJp = lab.primaryFieldCode
-              ? (FIELD_LABEL_BY_CODE[lab.primaryFieldCode] ??
-                lab.primaryFieldName)
-              : null;
+            const fieldJp = localizeFieldLabel(
+              lab.primaryFieldCode,
+              locale,
+              lab.primaryFieldName,
+            );
             return (
               <li
                 key={lab.id}

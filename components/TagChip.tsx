@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useT } from "./LocaleProvider";
+import { localizeTag } from "@/lib/labels-en";
 
 /**
  * lab カード内に表示するタグチップ。クリックで親 Link を抑止して
@@ -21,14 +22,15 @@ export function TagChip({ tag, href }: Props) {
     e.stopPropagation();
     router.push(href, { scroll: false });
   };
+  const display = localizeTag(tag, locale);
   return (
     <button
       type="button"
       onClick={onClick}
       className="text-[10px] leading-none px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded text-gray-700 dark:text-gray-300 hover:text-blue-700 dark:hover:text-blue-200 transition-colors border border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-600"
-      title={locale === "ja" ? `「${tag}」で絞り込む` : `Filter by "${tag}"`}
+      title={locale === "ja" ? `「${display}」で絞り込む` : `Filter by "${display}"`}
     >
-      {tag}
+      {display}
     </button>
   );
 }

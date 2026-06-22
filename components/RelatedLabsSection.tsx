@@ -1,13 +1,13 @@
 import Link from "next/link";
 import type { RelatedLab } from "@/lib/recommendations";
 import type { Locale } from "@/lib/i18n";
+import { localizeFieldLabel } from "@/lib/labels-en";
 import { FavoriteButton } from "./FavoriteButton";
 
 interface Props {
   labs: RelatedLab[];
   title?: string;
   emptyMessage?: string;
-  fieldLabelByCode: Record<string, string>;
   locale?: Locale;
 }
 
@@ -15,7 +15,6 @@ export function RelatedLabsSection({
   labs,
   title = "関連研究室",
   emptyMessage = "関連する研究室が見つかりませんでした。",
-  fieldLabelByCode,
   locale = "ja",
 }: Props) {
   const labSuffix = locale === "ja" ? "研究室" : "Lab";
@@ -36,9 +35,11 @@ export function RelatedLabsSection({
       ) : (
         <ul className="space-y-2">
           {labs.map((lab) => {
-            const fieldJp = lab.primaryFieldCode
-              ? (fieldLabelByCode[lab.primaryFieldCode] ?? lab.primaryFieldName)
-              : null;
+            const fieldJp = localizeFieldLabel(
+              lab.primaryFieldCode,
+              locale,
+              lab.primaryFieldName,
+            );
             return (
               <li
                 key={lab.id}

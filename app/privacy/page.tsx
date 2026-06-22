@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { CONTACT_EMAIL, OPERATOR_NAME, SITE_NAME } from "@/lib/site";
+import { getI18n } from "@/lib/i18n-server";
+import { JaOnlyNotice } from "@/components/JaOnlyNotice";
 
 export const metadata = {
   title: "プライバシーポリシー",
@@ -7,7 +9,8 @@ export const metadata = {
   alternates: { canonical: "/privacy" },
 };
 
-export default function PrivacyPage() {
+export default async function PrivacyPage() {
+  const { locale, t } = await getI18n();
   return (
     <main className="max-w-3xl mx-auto px-6 py-12 text-gray-800 dark:text-gray-200">
       <nav className="mb-6 text-sm">
@@ -15,9 +18,10 @@ export default function PrivacyPage() {
           href="/"
           className="text-blue-600 dark:text-blue-400 hover:underline"
         >
-          ← トップ
+          {t.toTop}
         </Link>
       </nav>
+      <JaOnlyNotice locale={locale} />
       <h1 className="text-3xl font-bold mb-2 text-gray-900 dark:text-gray-100">
         プライバシーポリシー
       </h1>

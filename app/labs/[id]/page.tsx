@@ -5,7 +5,6 @@ import { FavoriteButton } from "@/components/FavoriteButton";
 import { JsonLd } from "@/components/JsonLd";
 import { RelatedLabsSection } from "@/components/RelatedLabsSection";
 import { TagChip } from "@/components/TagChip";
-import { FIELD_LABEL_BY_CODE } from "@/lib/field-labels";
 import { getI18n } from "@/lib/i18n-server";
 import { getRelatedLabs } from "@/lib/recommendations";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
@@ -411,7 +410,6 @@ export default async function LabDetailPage({ params }: PageProps) {
                 ? "共通タグ・同分野のラボが見つかりませんでした（タグ未生成の可能性）。"
                 : "No labs found with shared tags or field (tags may not be generated yet)."
             }
-            fieldLabelByCode={FIELD_LABEL_BY_CODE}
             locale={locale}
           />
         </div>

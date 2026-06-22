@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useT } from "./LocaleProvider";
+import { localizeTag } from "@/lib/labels-en";
 import {
   KEYWORD_TREE,
   type KeywordNode,
@@ -157,7 +158,7 @@ function TreeNodeRow({
           <span className="text-xs leading-none w-3 inline-block">
             {INDICATOR[state]}
           </span>
-          <span>{node.label}</span>
+          <span>{localizeTag(node.label, locale)}</span>
         </button>
       </div>
       {!isLeaf && open && (

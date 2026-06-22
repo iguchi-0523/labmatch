@@ -8,7 +8,7 @@ import {
   getFavorites,
   removeFavorite,
 } from "@/lib/favorites-client";
-import { FIELD_LABEL_BY_CODE } from "@/lib/field-labels";
+import { localizeFieldLabel } from "@/lib/labels-en";
 import { FavoritesRecommendations } from "@/components/FavoritesRecommendations";
 import { useT } from "@/components/LocaleProvider";
 
@@ -146,10 +146,11 @@ export default function FavoritesPage() {
       ) : (
         <ul className="space-y-3">
           {labs.map((lab) => {
-            const fieldJp = lab.primaryFieldCode
-              ? (FIELD_LABEL_BY_CODE[lab.primaryFieldCode] ??
-                lab.primaryFieldName)
-              : null;
+            const fieldJp = localizeFieldLabel(
+              lab.primaryFieldCode,
+              locale,
+              lab.primaryFieldName,
+            );
             return (
               <li key={lab.id} className="relative">
                 <Link

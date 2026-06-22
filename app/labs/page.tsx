@@ -9,7 +9,7 @@ import { PrefectureTreeFilter } from "@/components/PrefectureTreeFilter";
 import { SortSelect } from "@/components/SortSelect";
 import { TagChip } from "@/components/TagChip";
 import { UniversityTreeFilter } from "@/components/UniversityTreeFilter";
-import { FIELD_LABEL_BY_CODE } from "@/lib/field-labels";
+import { localizeFieldLabel, localizeTag } from "@/lib/labels-en";
 import { getI18n } from "@/lib/i18n-server";
 import { interpolate } from "@/lib/i18n";
 import { buildFavoriteProfile, scoreLabByProfile } from "@/lib/recommendations";
@@ -431,7 +431,7 @@ export default async function LabsPage({ searchParams }: PageProps) {
                       className="text-xs px-2 py-0.5 bg-white dark:bg-gray-800 border border-emerald-300 dark:border-emerald-700 rounded text-emerald-900 dark:text-emerald-200 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 inline-flex items-center gap-1"
                       title={locale === "ja" ? "クリックで削除" : "Click to remove"}
                     >
-                      {tag} <span className="text-emerald-500 dark:text-emerald-400">×</span>
+                      {localizeTag(tag, locale)} <span className="text-emerald-500 dark:text-emerald-400">×</span>
                     </Link>
                   ))}
                 </div>
@@ -683,10 +683,11 @@ export default async function LabsPage({ searchParams }: PageProps) {
           ) : (
             <ul className="space-y-3">
               {labs.map((lab) => {
-                const fieldJp = lab.primaryFieldCode
-                  ? (FIELD_LABEL_BY_CODE[lab.primaryFieldCode] ??
-                    lab.primaryFieldName)
-                  : null;
+                const fieldJp = localizeFieldLabel(
+                  lab.primaryFieldCode,
+                  locale,
+                  lab.primaryFieldName,
+                );
                 return (
                   <li
                     key={lab.id}

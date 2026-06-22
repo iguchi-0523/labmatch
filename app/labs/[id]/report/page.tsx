@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { getI18n } from "@/lib/i18n-server";
+import { JaOnlyNotice } from "@/components/JaOnlyNotice";
 import { ReportForm } from "./ReportForm";
 
 export const dynamic = "force-dynamic";
@@ -31,6 +33,7 @@ export default async function ReportPage({ params }: PageProps) {
   });
   if (!lab || lab.deletedAt) notFound();
 
+  const { locale } = await getI18n();
   const displayName = lab.professorName;
 
   return (
@@ -51,6 +54,7 @@ export default async function ReportPage({ params }: PageProps) {
           {displayName} 研究室
         </Link>
       </nav>
+      <JaOnlyNotice locale={locale} />
 
       <header className="mb-6 pb-4 border-b">
         <h1 className="text-2xl font-bold mb-2">掲載に関するご依頼</h1>

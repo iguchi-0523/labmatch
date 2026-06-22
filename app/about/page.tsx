@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { getSiteStats } from "@/lib/stats";
+import { getI18n } from "@/lib/i18n-server";
+import { JaOnlyNotice } from "@/components/JaOnlyNotice";
 
 export const metadata = {
   title: "このサイトについて",
@@ -14,6 +16,7 @@ export const revalidate = 21600;
 
 export default async function AboutPage() {
   const stats = await getSiteStats();
+  const { locale, t } = await getI18n();
   const labApprox = Math.floor(stats.labCount / 100) * 100; // 「約 N 件」用に下 2 桁を丸める
   const workMan = (stats.workCount / 10000).toFixed(1); // 万件
   return (
@@ -23,9 +26,10 @@ export default async function AboutPage() {
           href="/"
           className="text-blue-600 dark:text-blue-400 hover:underline"
         >
-          ← トップ
+          {t.toTop}
         </Link>
       </nav>
+      <JaOnlyNotice locale={locale} />
       <h1 className="text-3xl font-bold mb-8 text-gray-900 dark:text-gray-100">
         ラボマッチについて
       </h1>
