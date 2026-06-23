@@ -11,9 +11,11 @@ import { SITE_NAME, SITE_URL } from "@/lib/site";
  */
 export const revalidate = 86400;
 
-// 動的 param を ISR キャッシュ対象にする（空配列＝初回アクセスで描画→キャッシュ）。
+// 都道府県は有限の固定集合なので全件ビルド時に事前生成する。
+// 空配列だと非 ASCII param（「東京都」等）の on-demand 生成が Vercel で 500 に
+// なるため、事前生成して確実にキャッシュさせる。
 export async function generateStaticParams() {
-  return [];
+  return getAllPrefectures().map((pref) => ({ pref }));
 }
 
 const NOINDEX_BELOW = 3;
