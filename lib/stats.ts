@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { prisma } from "./db";
 
 /** 取り込み「完了」とみなす最小ラボ数（子センター合算）。progress-report と揃える。 */
@@ -65,3 +66,28 @@ export async function getSiteStats(): Promise<SiteStats> {
     completedNames: completed.map((c) => c.name),
   };
 }
+
+/**
+ * SEO コピー（トップの description / OGP / Twitter カード）用に、ラボ数・論文数を
+ * 丸めた表示文字列で返す。
+ *
+ * unstable_cache で 6 時間キャッシュするので、取り込みの進行に合わせて自動更新
+ * されつつ、レイアウトを静的（ISR）に保てる（リクエストごとの DB アクセスを避ける）。
+ * 丸めは「実数を上回らない」floor 方向にして誇張を避ける。
+ */
+export const getSeoCounts = unstable_cache(
+  async () => {
+    const [labCount, workCount] = await Promise.all([
+      prisma.lab.count({ where: { deletedAt: null } }),
+      prisma.work.count(),
+    ]);
+    return {
+      // 「約 1.7 万研究室」: 千の位で floor → 0.1 万単位
+      labMan: (Math.floor(labCount / 1000) / 10).toFixed(1),
+      // 「約 59 万件」: 万の位で floor
+      workMan: Math.floor(workCount / 10000),
+    };
+  },
+  ["seo-counts"],
+  { revalidate: 21600 },
+);

@@ -1,20 +1,11 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { LOCALE_COOKIE, LOCALES, type Locale } from "@/lib/i18n";
+import { LOCALES, type Locale } from "@/lib/i18n";
 import { useT } from "./LocaleProvider";
 
-/** ja / en の切替。cookie に保存して router.refresh で再描画。 */
+/** ja / en の切替。cookie 保存と再描画は LocaleProvider.setLocale が担う。 */
 export function LanguageToggle() {
-  const router = useRouter();
-  const { locale } = useT();
-
-  const setLocale = (next: Locale) => {
-    if (next === locale) return;
-    // 1 年保持。path=/ で全ページ共通。
-    document.cookie = `${LOCALE_COOKIE}=${next}; path=/; max-age=31536000; samesite=lax`;
-    router.refresh();
-  };
+  const { locale, setLocale } = useT();
 
   const label: Record<Locale, string> = { ja: "日本語", en: "English" };
 

@@ -37,6 +37,21 @@ export function Footer() {
                 </Link>
               </li>
               <li>
+                <Link href="/universities" className={linkCls}>
+                  {locale === "ja" ? "大学から探す" : "Browse by university"}
+                </Link>
+              </li>
+              <li>
+                <Link href="/fields" className={linkCls}>
+                  {locale === "ja" ? "分野から探す" : "Browse by field"}
+                </Link>
+              </li>
+              <li>
+                <Link href="/areas" className={linkCls}>
+                  {locale === "ja" ? "地域から探す" : "Browse by region"}
+                </Link>
+              </li>
+              <li>
                 <FavoritesNavLink className={linkCls} />
               </li>
               <li>

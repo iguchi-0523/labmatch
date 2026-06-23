@@ -75,6 +75,29 @@ export default async function Home() {
               {t.homeCta}
               <span aria-hidden="true">→</span>
             </Link>
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-sm">
+              <span className="text-gray-500 dark:text-gray-400">
+                {locale === "ja" ? "一覧から探す:" : "Or browse:"}
+              </span>
+              <Link
+                href="/universities"
+                className="text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                {locale === "ja" ? "大学" : "Universities"}
+              </Link>
+              <Link
+                href="/fields"
+                className="text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                {locale === "ja" ? "分野" : "Fields"}
+              </Link>
+              <Link
+                href="/areas"
+                className="text-blue-600 dark:text-blue-400 hover:underline"
+              >
+                {locale === "ja" ? "地域" : "Regions"}
+              </Link>
+            </div>
           </div>
         </div>
 

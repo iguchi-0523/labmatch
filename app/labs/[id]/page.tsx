@@ -5,26 +5,47 @@ import { FavoriteButton } from "@/components/FavoriteButton";
 import { JsonLd } from "@/components/JsonLd";
 import { RelatedLabsSection } from "@/components/RelatedLabsSection";
 import { TagChip } from "@/components/TagChip";
-import { getI18n } from "@/lib/i18n-server";
+import { ViewBeacon } from "@/components/ViewBeacon";
+import { FIELD_LABEL_BY_CODE } from "@/lib/field-labels";
+import { getDict, type Locale } from "@/lib/i18n";
 import { getRelatedLabs } from "@/lib/recommendations";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
 
-export const dynamic = "force-dynamic";
+// ラボ詳細は ISR キャッシュ（CDN 配信 + クロール効率）。force-dynamic をやめ、
+// cookie 依存（getI18n）も外した。閲覧数は ViewBeacon → API で加算する。
+export const revalidate = 86400;
+
+// 動的 param ルートを ISR の対象にする（Next.js は generateStaticParams が無いと
+// 動的 param を no-store で都度描画する）。空配列＝ビルド時は事前生成せず、初回
+// アクセスで描画してキャッシュ。1.7 万→将来 5 万ページでもビルドが膨らまない。
+export async function generateStaticParams() {
+  return [];
+}
 
 interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-/** ラボ詳細の description を、研究分野・タグ・大学を織り込んで作る */
-function buildLabDescription(lab: {
+/**
+ * ラボ詳細の description（検索スニペット）を作る。
+ *
+ * GSC 上、流入クエリは研究者名と研究トピック（遺伝子・薬剤・手法名）が中心。
+ * トピックでマッチさせるため、分野名と研究テーマ（タグ）を冒頭に出す。
+ * 分野は日本語ラベルを使う（旧実装は英語の primaryFieldName をそのまま
+ * 出していて「Medicine分野」のような不自然な日本語になっていた）。
+ */
+function buildLabDescription(opts: {
   professorName: string;
-  university: { name: string };
-  primaryFieldName: string | null;
+  uniLabel: string;
+  fieldLabel: string | null;
   tags: string[];
 }): string {
-  const field = lab.primaryFieldName ? `${lab.primaryFieldName}分野。` : "";
-  const tags = lab.tags.length > 0 ? `研究テーマ: ${lab.tags.slice(0, 6).join("、")}。` : "";
-  return `${lab.university.name} ${lab.professorName} 研究室の紹介。${field}${tags}直近 5 年の論文と AI 要約、外部リンク（researchmap / KAKEN ほか）をまとめています。`;
+  const field = opts.fieldLabel ? `${opts.fieldLabel}の研究室。` : "研究室。";
+  const themes =
+    opts.tags.length > 0
+      ? `研究テーマ: ${opts.tags.slice(0, 6).join("・")}。`
+      : "";
+  return `${field}${themes}${opts.professorName}（${opts.uniLabel}）の直近5年の論文を AI が日本語で要約。researchmap・KAKEN などへのリンクもまとめています。`;
 }
 
 export async function generateMetadata({ params }: PageProps) {
@@ -35,23 +56,37 @@ export async function generateMetadata({ params }: PageProps) {
     where: { id: labId },
     select: {
       professorName: true,
+      primaryFieldCode: true,
       primaryFieldName: true,
       tags: true,
       deletedAt: true,
       university: { select: { name: true, parent: { select: { name: true } } } },
+      _count: { select: { works: true } },
     },
   });
   if (!lab || lab.deletedAt) return { title: "見つかりません" };
   const uniLabel = lab.university.parent
     ? `${lab.university.parent.name}・${lab.university.name}`
     : lab.university.name;
+  const fieldLabel = lab.primaryFieldCode
+    ? (FIELD_LABEL_BY_CODE[lab.primaryFieldCode] ?? lab.primaryFieldName)
+    : lab.primaryFieldName;
   const title = `${lab.professorName} 研究室（${uniLabel}）`;
-  const description = buildLabDescription(lab);
+  const description = buildLabDescription({
+    professorName: lab.professorName,
+    uniLabel,
+    fieldLabel,
+    tags: lab.tags,
+  });
   const canonical = `/labs/${labId}`;
+  // works が薄いラボ詳細は noindex（scaled thin content 回避 + クロール予算の節約）。
+  // follow は残し、内部リンク経由のクロールは妨げない。sitemap も同条件で除外。
+  const isThin = lab._count.works < 3;
   return {
     title,
     description,
     alternates: { canonical },
+    ...(isThin ? { robots: { index: false, follow: true } } : {}),
     openGraph: {
       type: "profile",
       url: `${SITE_URL}${canonical}`,
@@ -83,13 +118,13 @@ export default async function LabDetailPage({ params }: PageProps) {
 
   if (!lab || lab.deletedAt) notFound();
 
-  const { locale, t } = await getI18n();
+  // ラボ詳細は cookie を読まず日本語固定で描画し、ISR キャッシュ可能にする。
+  // UI 言語切替は Footer などクライアント側にのみ効く。
+  const locale: Locale = "ja";
+  const t = getDict("ja");
 
-  // 閲覧数を加算（人気順ソート用）。描画を待たせないよう fire-and-forget。
-  // 失敗してもページ表示には影響させない。
-  void prisma.lab
-    .update({ where: { id: lab.id }, data: { viewCount: { increment: 1 } } })
-    .catch(() => {});
+  // 閲覧数は ISR キャッシュ下では描画時に増やせない。クライアントの ViewBeacon が
+  // /api/labs/[id]/view を叩いて加算する（人気順ソート用）。
 
   // 関連研究室をタグ・分野・大学から算出
   const relatedLabs = await getRelatedLabs(
@@ -141,10 +176,21 @@ export default async function LabDetailPage({ params }: PageProps) {
         "@type": "BreadcrumbList",
         itemListElement: [
           { "@type": "ListItem", position: 1, name: "ラボマッチ", item: SITE_URL },
-          { "@type": "ListItem", position: 2, name: "研究室一覧", item: `${SITE_URL}/labs` },
+          {
+            "@type": "ListItem",
+            position: 2,
+            name: "大学から探す",
+            item: `${SITE_URL}/universities`,
+          },
           {
             "@type": "ListItem",
             position: 3,
+            name: subOrg ? `${uniName}・${subOrg}` : uniName,
+            item: `${SITE_URL}/universities/${lab.universityId}`,
+          },
+          {
+            "@type": "ListItem",
+            position: 4,
             name: `${lab.professorName} 研究室`,
             item: `${SITE_URL}/labs/${lab.id}`,
           },
@@ -217,13 +263,24 @@ export default async function LabDetailPage({ params }: PageProps) {
   return (
     <main className="min-h-screen p-8 max-w-5xl mx-auto">
       <JsonLd data={jsonLd} />
+      <ViewBeacon labId={lab.id} />
       <nav className="mb-4 text-sm space-x-2">
         <Link href="/" className="text-blue-600 dark:text-blue-400 hover:underline">
           {t.home}
         </Link>
         <span className="text-gray-400 dark:text-gray-600">/</span>
-        <Link href="/labs" className="text-blue-600 dark:text-blue-400 hover:underline">
-          {t.breadcrumbLabs}
+        <Link
+          href="/universities"
+          className="text-blue-600 dark:text-blue-400 hover:underline"
+        >
+          {locale === "ja" ? "大学から探す" : "Universities"}
+        </Link>
+        <span className="text-gray-400 dark:text-gray-600">/</span>
+        <Link
+          href={`/universities/${lab.universityId}`}
+          className="text-blue-600 dark:text-blue-400 hover:underline"
+        >
+          {subOrg ? `${uniName}・${subOrg}` : uniName}
         </Link>
       </nav>
 
