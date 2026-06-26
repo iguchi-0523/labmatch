@@ -1,12 +1,8 @@
 # ラボマッチ 取り込み進捗レポート
 
-_最終更新: 2026-06-25 11:34:53 JST_
+_最終更新: 2026-06-26 11:37:04 JST_
 
 ```
-  2026/6/25 11:34:55 JST
-=================================
-
-■ 取り込み完了済み (labs >= 50): 32/72 機関 (44%)
   ✓ 東京大学                   1418 labs
   ✓ 大阪大学                   1246 labs
   ✓ 京都大学                   1187 labs
@@ -24,26 +20,30 @@ _最終更新: 2026-06-25 11:34:53 JST_
   ✓ 金沢大学                   508 labs
   ✓ 長崎大学                   485 labs
   ✓ 熊本大学                   459 labs
+  ✓ 自治医科大学                 441 labs
   ✓ 近畿大学                   413 labs
   ✓ 東京都立大学                 410 labs
   ✓ 東京医科歯科大学               409 labs
   ✓ 新潟大学                   403 labs
+  ✓ 浜松医科大学                 348 labs
   ✓ 横浜市立大学                 338 labs
   ✓ 早稲田大学                  300 labs
+  ✓ 日本医科大学                 288 labs
   ✓ 東京農工大学                 285 labs
   ✓ 東京理科大学                 247 labs
   ✓ 名古屋大学                  233 labs
   ✓ 東京工業大学                 222 labs
   ✓ 立命館大学                  209 labs
-  ✓ 自治医科大学                 151 labs
+  ✓ 同志社大学                  134 labs
   ✓ Tokyo Metropolitan Institute of Medical Science 94 labs
+  ✓ 京都工芸繊維大学               92 labs
   ✓ 名古屋工業大学                87 labs
   ✓ 横浜国立大学                 83 labs
 
 ■ 部分取り込み (1〜49 labs): 1 機関
   · 理化学研究所                 20 labs
 
-■ 子センター (parent 付き、研究機関): 51 件
+■ 子センター (parent 付き、研究機関): 52 件
   · University of Tokyo Hospital                            277 labs
   · Keio University Hospital                                227 labs
   · Kyoto University Hospital                               208 labs
@@ -52,15 +52,15 @@ _最終更新: 2026-06-25 11:34:53 JST_
   · Kyushu University Hospital                              174 labs
   · Niigata University Medical and Dental Hospital          141 labs
   · RIKEN Center for Integrative Medical Sciences           141 labs
+  · Jichi Medical University Hospital                       133 labs
   · Juntendo University Hospital                            133 labs
-  · University of Tsukuba Hospital                          124 labs
 
 ■ 全体統計
-  ラボ総数:     20,640
-  論文総数:     681,933
-  AI 要約済み:  20,224 (98%)
-  タグ付き:     20,328 (98%)
+  ラボ総数:     21,960
+  論文総数:     715,829
+  AI 要約済み:  21,742 (99%)
+  タグ付き:     21,692 (99%)
 
 ■ config に登録されている総数: 72 機関（大学 + 公的研究機関 + 学内研究所）
-  残: 約 40 機関 (4 本/日 cron で約 10 日で完走)
+  残: 約 36 機関 (4 本/日 cron で約 9 日で完走)
 ```
