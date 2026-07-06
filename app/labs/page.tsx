@@ -9,6 +9,7 @@ import { PrefectureTreeFilter } from "@/components/PrefectureTreeFilter";
 import { SortSelect } from "@/components/SortSelect";
 import { TagChip } from "@/components/TagChip";
 import { UniversityTreeFilter } from "@/components/UniversityTreeFilter";
+import { compareUniversities } from "@/lib/university-rank";
 import { localizeFieldLabel, localizeTag } from "@/lib/labels-en";
 import { getI18n } from "@/lib/i18n-server";
 import { interpolate } from "@/lib/i18n";
@@ -290,8 +291,13 @@ export default async function LabsPage({ searchParams }: PageProps) {
     prisma.lab.count({ where: { deletedAt: null } }),
     prisma.lab.count({ where }),
     prisma.university.findMany({
-      select: { id: true, name: true, category: true, parentId: true },
-      orderBy: { name: "asc" },
+      select: {
+        id: true,
+        name: true,
+        category: true,
+        parentId: true,
+        _count: { select: { labs: true } },
+      },
     }),
     recommendActive ? buildFavoriteProfile(favIds) : Promise.resolve(null),
   ]);
@@ -514,12 +520,19 @@ export default async function LabsPage({ searchParams }: PageProps) {
                   : "Click a category (national / public / private / institute) to select all of its institutions. ▶ toggles."}
               </p>
               <UniversityTreeFilter
-                universities={universities.map((u) => ({
-                  id: u.id,
-                  name: u.name,
-                  category: u.category,
-                  parentId: u.parentId,
-                }))}
+                universities={[...universities]
+                  .sort((a, b) =>
+                    compareUniversities(
+                      { name: a.name, labs: a._count.labs },
+                      { name: b.name, labs: b._count.labs },
+                    ),
+                  )
+                  .map((u) => ({
+                    id: u.id,
+                    name: u.name,
+                    category: u.category,
+                    parentId: u.parentId,
+                  }))}
               />
               {/* form submit でも選択を保持するための hidden */}
               {universityIds.map((id) => (

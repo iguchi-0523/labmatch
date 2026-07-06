@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { JsonLd } from "@/components/JsonLd";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
+import { compareUniversities } from "@/lib/university-rank";
 
 /**
  * 大学ハブの一覧ページ。各大学ハブ（/universities/[id]）への内部リンクを束ね、
@@ -132,7 +133,12 @@ export default async function UniversitiesIndexPage() {
         {orderedKeys.map((key) => {
           const list = (groups.get(key) ?? [])
             .map((u) => ({ ...u, n: totalForUni(u.id) }))
-            .sort((a, b) => b.n - a.n);
+            .sort((a, b) =>
+              compareUniversities(
+                { name: a.name, labs: a.n },
+                { name: b.name, labs: b.n },
+              ),
+            );
           if (list.length === 0) return null;
           return (
             <section key={key}>
