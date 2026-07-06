@@ -29,6 +29,11 @@ export interface University {
    * （lineage を使わない）。学内研究所で親大学に紐付かないものに使用。
    */
   useDirectIdFilter?: boolean;
+  /**
+   * true なら自動 ingest（ingest-next の auto-pick）の対象から外す。
+   * 既に別レコード（例：nameEn 側や親大学）で取り込み済みの重複機関に使う。
+   */
+  skipAutoIngest?: boolean;
 }
 
 export type FieldGroup = "life" | "health";

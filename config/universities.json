@@ -824,6 +824,7 @@
       "openalexInstitutionId": "I4210150921",
       "parentKey": "riken",
       "useDirectIdFilter": true,
+      "skipAutoIngest": true,
       "worksCount": 9336
     },
     {

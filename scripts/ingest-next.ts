@@ -35,23 +35,37 @@ interface CandidateInfo {
 }
 
 /**
- * 完了判定用の lab 数。親大学自身の lab だけでなく、子センター
- *（parentId が当該大学を指す University）の lab も合算する。
+ * 完了判定用の lab 数。config の 1 機関に対応する DB 上の University レコードを
+ * 日本語名(name)と英語名(nameEn)の両方で拾い、それぞれの子センター
+ *（parentId が当該レコードを指す University）の lab も合算する。
  *
- * 理由：RIKEN のように PI が全員子センター（RIKEN Center for ...）に
+ * 理由 1：RIKEN のように PI が全員子センター（RIKEN Center for ...）に
  * 振り分けられる機関では、親レコード自体の lab 数が 50 に届かず、
  * ingest-next が毎回その機関を選び直して無限ループしていた（2026-06-18 発覚）。
+ *
+ * 理由 2：ingest が nameEn 側のレコード（例 "RIKEN Center for Integrative
+ * Medical Sciences" = 141 labs）にラボを作り、完了判定が name 側の空に近い
+ * シャドウレコード（"理研 統合生命医科学研究センター" = 35 labs）だけを数えて
+ * 50 に届かず、同じ機関を無限に選び直していた（2026-07-06 発覚）。name と
+ * nameEn の両レコードを合算することで、この重複割れを完了扱いにする。
  */
-async function countLabsIncludingChildren(uniName: string): Promise<number> {
-  const uni = await prisma.university.findUnique({
-    where: { name: uniName },
+async function countLabsForConfigUni(uni: University): Promise<number> {
+  const names = [uni.name, uni.nameEn].filter(
+    (n): n is string => typeof n === "string" && n.length > 0,
+  );
+  const recs = await prisma.university.findMany({
+    where: { name: { in: names } },
     select: { id: true },
   });
-  if (!uni) return 0;
+  if (recs.length === 0) return 0;
+  const ids = recs.map((r) => r.id);
   return prisma.lab.count({
     where: {
       deletedAt: null,
-      OR: [{ universityId: uni.id }, { university: { parentId: uni.id } }],
+      OR: [
+        { universityId: { in: ids } },
+        { university: { parentId: { in: ids } } },
+      ],
     },
   });
 }
@@ -70,7 +84,9 @@ async function pickNextUniversity(): Promise<CandidateInfo | null> {
   });
 
   for (const uni of sorted) {
-    const labCount = await countLabsIncludingChildren(uni.name);
+    // 別レコードで取り込み済みの重複機関などは明示的に除外する
+    if (uni.skipAutoIngest) continue;
+    const labCount = await countLabsForConfigUni(uni);
     if (labCount < MIN_LAB_COUNT_TO_CONSIDER_DONE) {
       return { university: uni, currentLabCount: labCount };
     }
@@ -89,9 +105,7 @@ async function main() {
       console.error(`Force key "${force}" not found in config`);
       process.exit(1);
     }
-    const labCount = await prisma.lab.count({
-      where: { university: { name: uni.name }, deletedAt: null },
-    });
+    const labCount = await countLabsForConfigUni(uni);
     target = { university: uni, currentLabCount: labCount };
   } else {
     target = await pickNextUniversity();
