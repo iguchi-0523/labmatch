@@ -34,6 +34,8 @@ export interface University {
    * 既に別レコード（例：nameEn 側や親大学）で取り込み済みの重複機関に使う。
    */
   skipAutoIngest?: boolean;
+  /** OpenAlex 報告の論文数。研究力の目安。表示順のフォールバックに使う。 */
+  worksCount?: number;
 }
 
 export type FieldGroup = "life" | "health";
