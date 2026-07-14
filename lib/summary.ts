@@ -34,6 +34,16 @@ interface WorkInput {
   year: number | null;
 }
 
+// OpenAlex の要旨・タイトルにまれに混入する孤立サロゲート（ペアの片割れだけの
+// 壊れた UTF-16 文字）を除去する。これが残ると SDK が本文を JSON 化する時点で
+// 400 "no low surrogate in string" になり、同じラボが毎回必ず失敗する。
+function stripLoneSurrogates(s: string): string {
+  return s.replace(
+    /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g,
+    "",
+  );
+}
+
 let _client: Anthropic | null = null;
 function getClient(): Anthropic {
   if (_client) return _client;
@@ -75,7 +85,7 @@ export async function generateLabSummary(
         cache_control: { type: "ephemeral" },
       },
     ],
-    messages: [{ role: "user", content: userPrompt }],
+    messages: [{ role: "user", content: stripLoneSurrogates(userPrompt) }],
   });
 
   const textBlock = response.content.find((b) => b.type === "text");

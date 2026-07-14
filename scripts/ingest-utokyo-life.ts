@@ -3,9 +3,13 @@ import { config } from "dotenv";
 config({ override: true });
 import { prisma } from "../lib/db";
 import {
+  getAllFieldGroups,
   getEnabledUniversities,
   getFieldIdsForGroups,
   getUniversityByKey,
+  LIFE_GROUPS,
+  STEM_GROUPS,
+  type FieldGroup,
   type University,
 } from "../lib/universities";
 import { extractTagsForLab } from "../lib/tags";
@@ -21,24 +25,31 @@ const TAG_CONTEXT = {
 };
 
 /**
- * 戦略1：OpenAlex から東京大学の生命科学系＋医学系 PI を一括取り込みする。
+ * OpenAlex から大学の PI を分野グループ単位で一括取り込みする。
+ * 当初は生命＋医療のみだったが、2026-07 に理工系（物理・化学・工学・情報）を
+ * 追加。取り込む分野は config/universities.json の fields で定義し、実行時に
+ * --fields= で選ぶ（既定は全グループ）。
  *
  * パイプライン:
- *   1. discoverCandidatesForField(fieldId) × 7 fields → 候補 PI を網羅収集（重複排除）
- *   2. verifyPIs() で last_known_institutions.lineage に東大が含まれ、
+ *   1. discoverCandidatesForField(fieldId) × 対象 fields → 候補 PI を網羅収集（重複排除）
+ *   2. verifyPIs() で last_known_institutions.lineage に対象大学が含まれ、
  *      works_count≥20 / h_index≥5 を満たす PI に絞り込み
  *   3. fetchPIWorks() で各 PI の直近5年・journal-article を最大100件取得
  *   4. Lab を openalexAuthorId キーで upsert、Work を (labId, sourceUrl) で重複排除
  *
- * 想定: 1,000〜1,500 API calls / 10〜15 分
+ * 想定: 生命＋医療の7分野で 1,000〜1,500 API calls / 10〜15 分。
+ *       全分野（18）だと概ね 2〜3 倍。分野を絞れば比例して減る。
  * 認証: OPENALEX_API_KEY 必須（2026/2/13 以降）。
  *       公式仕様に従い `api_key=KEY` を URL パラメータで送る（Bearer ヘッダではない）。
  *       キー取得は https://openalex.org/settings/api
  *
  * 使い方:
- *   npx tsx scripts/ingest-utokyo-life.ts            # 本実行
- *   npx tsx scripts/ingest-utokyo-life.ts --dry-run  # API 取得のみ、DB 書き込みなし
+ *   npx tsx scripts/ingest-utokyo-life.ts                       # 全分野で本実行
+ *   npx tsx scripts/ingest-utokyo-life.ts --dry-run             # API 取得のみ、DB 書き込みなし
  *   npx tsx scripts/ingest-utokyo-life.ts --university=u-tokyo  # 大学キー指定
+ *   npx tsx scripts/ingest-utokyo-life.ts --fields=stem         # 理工系のみ（既存大学の追い取り込み用）
+ *   npx tsx scripts/ingest-utokyo-life.ts --fields=life         # 生命＋医療のみ（従来挙動）
+ *   npx tsx scripts/ingest-utokyo-life.ts --fields=physics,informatics  # 個別指定
  */
 
 const OPENALEX = "https://api.openalex.org";
@@ -56,17 +67,50 @@ const MIN_SUBFIELD_COUNT = 2;    // subfield 内 works=1 のみの著者は捨�
 interface CliArgs {
   dryRun: boolean;
   universityKey: string | null;
+  fieldGroups: FieldGroup[];
+}
+
+/**
+ * --fields= の値を FieldGroup[] に解決する。
+ *   all   … config に定義された全グループ（生命＋医療＋理工）。未指定時の既定。
+ *   life  … 生命・医療のみ（従来挙動）= life,health
+ *   stem  … 理工系のみ = chemistry,physics,engineering,informatics
+ *   その他 … カンマ区切りのグループ名を直接指定（例 physics,informatics）
+ */
+function resolveFieldGroups(spec: string | null): FieldGroup[] {
+  if (!spec || spec === "all") return getAllFieldGroups();
+  if (spec === "life") return [...LIFE_GROUPS];
+  if (spec === "stem") return [...STEM_GROUPS];
+  const known = new Set(getAllFieldGroups());
+  const groups = spec.split(",").map((s) => s.trim()).filter(Boolean);
+  for (const g of groups) {
+    if (!known.has(g as FieldGroup)) {
+      throw new Error(
+        `Unknown field group "${g}". Valid: all, life, stem, or one of ${[...known].join(",")}`,
+      );
+    }
+  }
+  // カンマのみ・空白のみ（例 --fields=, / --fields=' '）は空配列になり、
+  // 何も取り込まずに成功終了してしまう。明示的にエラーにする。
+  if (groups.length === 0) {
+    throw new Error(
+      `--fields="${spec}" resolved to no field groups. Valid: all, life, stem, or a comma list of ${[...known].join(",")}`,
+    );
+  }
+  return groups as FieldGroup[];
 }
 
 function parseArgs(argv: string[]): CliArgs {
   let dryRun = false;
   let universityKey: string | null = null;
+  let fieldsSpec: string | null = null;
   for (const a of argv.slice(2)) {
     if (a === "--dry-run") dryRun = true;
     else if (a.startsWith("--university=")) universityKey = a.split("=", 2)[1];
+    else if (a.startsWith("--fields=")) fieldsSpec = a.split("=", 2)[1];
     else throw new Error(`Unknown argument: ${a}`);
   }
-  return { dryRun, universityKey };
+  return { dryRun, universityKey, fieldGroups: resolveFieldGroups(fieldsSpec) };
 }
 
 // ----- HTTP helpers -----
@@ -714,27 +758,35 @@ async function upsertPIAndWorks(
   // 自動タグ計算（works タイトル + abstract から KEYWORD_TREE leaf を頻度マッチ）
   // aiSummary は別工程で生成されるため、ここでは title + abstract のみが corpus。
   // 後で backfill:tags で aiSummary 込みに再計算可能。
-  try {
-    const tagSourceWorks = works
-      .filter((w) => w.title)
-      .map((w) => ({
-        title: w.title as string,
-        // OpenAlex の reconstructed abstract を titleJa スロットに乗せて corpus に含める
-        titleJa: reconstructAbstract(w.abstract_inverted_index),
-      }));
-    const tags = extractTagsForLab(
-      { aiSummary: null, works: tagSourceWorks },
-      TAG_CONTEXT,
-      20,
-    );
-    await prisma.lab.update({
-      where: { id: lab.id },
-      data: { tags, tagsGeneratedAt: new Date() },
-    });
-  } catch (e) {
-    console.warn(
-      `  tag computation failed for ${pi.displayName}: ${e instanceof Error ? e.message : e}`,
-    );
+  //
+  // 再取り込み対策：既にタグが付いているラボ（backfill:tags で aiSummary 込みに
+  // 再計算済みかもしれない）を、ここで aiSummary=null の貧しい corpus で上書き
+  // しない。理工系の追い取り込みで既存の生命系ラボ（二分野 PI）に触れても、
+  // 良質なタグを潰さないため。新規 or 未タグのラボだけ計算する。
+  const alreadyTagged = !!existing && (existing.tags?.length ?? 0) > 0;
+  if (!alreadyTagged) {
+    try {
+      const tagSourceWorks = works
+        .filter((w) => w.title)
+        .map((w) => ({
+          title: w.title as string,
+          // OpenAlex の reconstructed abstract を titleJa スロットに乗せて corpus に含める
+          titleJa: reconstructAbstract(w.abstract_inverted_index),
+        }));
+      const tags = extractTagsForLab(
+        { aiSummary: null, works: tagSourceWorks },
+        TAG_CONTEXT,
+        20,
+      );
+      await prisma.lab.update({
+        where: { id: lab.id },
+        data: { tags, tagsGeneratedAt: new Date() },
+      });
+    } catch (e) {
+      console.warn(
+        `  tag computation failed for ${pi.displayName}: ${e instanceof Error ? e.message : e}`,
+      );
+    }
   }
 
   return { labsUpserted: 1, worksInserted: inserted, worksSkipped: skipped };
@@ -827,10 +879,11 @@ async function main() {
     process.exit(1);
   }
 
-  const fieldIds = getFieldIdsForGroups(["life", "health"]);
+  const fieldIds = getFieldIdsForGroups(args.fieldGroups);
   console.log(
     `Targets: ${targets.map((t) => t.key).join(", ")}\n` +
-      `Fields: ${fieldIds.join(",")} (life + health)\n` +
+      `Field groups: ${args.fieldGroups.join(", ")}\n` +
+      `Fields: ${fieldIds.join(",")}\n` +
       `Since: ${SINCE_YEAR}-01-01\n` +
       `Dry-run: ${args.dryRun}`,
   );

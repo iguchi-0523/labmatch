@@ -38,7 +38,24 @@ export interface University {
   worksCount?: number;
 }
 
-export type FieldGroup = "life" | "health";
+export type FieldGroup =
+  | "life"
+  | "health"
+  | "chemistry"
+  | "physics"
+  | "engineering"
+  | "informatics";
+
+/** 生命・医療系（従来の取り込み対象）。 */
+export const LIFE_GROUPS: FieldGroup[] = ["life", "health"];
+
+/** 理工系（物理・化学・工学・情報）。2026-07 に取り込み対象へ追加。 */
+export const STEM_GROUPS: FieldGroup[] = [
+  "chemistry",
+  "physics",
+  "engineering",
+  "informatics",
+];
 
 interface FieldGroupConfig {
   ids: number[];
@@ -78,10 +95,16 @@ export const CATEGORY_LABEL: Record<UniversityCategory, string> = {
   "research-institute": "研究機関",
 };
 
+export function getAllFieldGroups(): FieldGroup[] {
+  return Object.keys(config.fields) as FieldGroup[];
+}
+
 export function getFieldIdsForGroups(groups: FieldGroup[]): number[] {
   const seen = new Set<number>();
   for (const g of groups) {
-    for (const id of config.fields[g].ids) seen.add(id);
+    const cfg = config.fields[g];
+    if (!cfg) throw new Error(`Unknown field group: ${g}`);
+    for (const id of cfg.ids) seen.add(id);
   }
   return [...seen].sort((a, b) => a - b);
 }

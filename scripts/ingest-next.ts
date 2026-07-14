@@ -83,12 +83,42 @@ async function pickNextUniversity(): Promise<CandidateInfo | null> {
     return bw - aw;
   });
 
+  // 「未着手（DB に lab が 0 件）」の機関だけを自動取り込みの対象にする。
+  //
+  // 旧ロジックは「lab < 50 の最初の機関」を返していた。しかし ingest は 1 回で
+  // その分野の PI を出し尽くす単発処理なので、小規模機関（例: Kavli IPMU は
+  // 生命+医療で 33 lab が上限）は何度取り込んでも 50 に届かない。すると毎 cron
+  // で同じ機関を選び直し、それより研究力の低い未着手機関を永久に飛ばして
+  // 進捗が止まる（2026-07-08 以降、本番 cron が Kavli IPMU で無言停止していた）。
+  //
+  // 対策：一度でも取り込まれた（lab≥1）が閾値未満の機関は「その分野では
+  // 出し尽くし」とみなして自動選択から外し、未着手機関を研究力順に流す。
+  // 出し尽くしの部分機関を後から伸ばしたいときは、config に分野を足したうえで
+  // INGEST_NEXT_FORCE_KEY=<key> か `--fields=stem` で手動追い取り込みする。
+  const startedButUnfinished: { key: string; labs: number }[] = [];
   for (const uni of sorted) {
     // 別レコードで取り込み済みの重複機関などは明示的に除外する
     if (uni.skipAutoIngest) continue;
     const labCount = await countLabsForConfigUni(uni);
-    if (labCount < MIN_LAB_COUNT_TO_CONSIDER_DONE) {
-      return { university: uni, currentLabCount: labCount };
+    if (labCount >= MIN_LAB_COUNT_TO_CONSIDER_DONE) continue; // 取り込み済み
+    if (labCount === 0) {
+      // 未着手＝本来の自動取り込み対象。研究力の高い順で 1 校返す。
+      return { university: uni, currentLabCount: 0 };
+    }
+    // 0 < labCount < 50：着手済みだが閾値未満。ここでは選ばない。
+    startedButUnfinished.push({ key: uni.key, labs: labCount });
+  }
+
+  if (startedButUnfinished.length > 0) {
+    console.log(
+      "No un-started institution left. Skipped partially-ingested (1-49 labs) " +
+        "institutions to avoid re-picking exhausted ones:",
+    );
+    for (const s of startedButUnfinished) {
+      console.log(
+        `  · ${s.key} (${s.labs} labs) — INGEST_NEXT_FORCE_KEY=${s.key} to retry ` +
+          `(e.g. after adding fields, or --fields=stem backfill)`,
+      );
     }
   }
   return null;
@@ -126,22 +156,69 @@ async function main() {
     return;
   }
 
+  const before = target.currentLabCount;
   await prisma.$disconnect();
 
-  // 既存 ingest-utokyo-life.ts を子プロセスで呼ぶ
-  console.log("Spawning ingest-utokyo-life.ts...");
+  // 既存 ingest-utokyo-life.ts を子プロセスで呼ぶ。
+  // 取り込む分野は「明示的に」固定する。ingest-utokyo-life.ts の CLI 既定は
+  // 2026-07 に「全分野=18」へ変わったが、nightly cron（GitHub Actions）は
+  // timeout-minutes:350 が生命＋医療の 7 分野を前提に組まれている。既定を暗黙
+  // 継承すると 1 回の cron が 18 分野（2〜3倍の負荷）になり、タイムアウトで
+  // 部分取り込みのまま labs>=50 を満たして「完了扱い」に固定される恐れがある。
+  // よって cron は既定 life（従来挙動）に固定。理工系の追い取り込みは別途
+  // --fields=stem を明示実行する。スコープを変えたい場合は INGEST_NEXT_FIELDS で。
+  const fields = process.env.INGEST_NEXT_FIELDS || "life";
+  console.log(`Spawning ingest-utokyo-life.ts (--fields=${fields})...`);
   const child = spawn(
     "npx",
     [
       "tsx",
       "scripts/ingest-utokyo-life.ts",
       `--university=${target.university.key}`,
+      `--fields=${fields}`,
     ],
     { stdio: "inherit" },
   );
-  child.on("exit", (code) => {
+  child.on("exit", async (code) => {
     console.log(`\ningest exited with code ${code}`);
-    process.exit(code ?? 0);
+
+    // 進捗を計測する。取り込み後に lab が 1 件も増えていなければ「無言の停止」。
+    // GitHub Actions を非ゼロ終了で赤にし、失敗メールで気づけるようにする
+    // （全機関完了で pickNextUniversity が null を返す正常系は上で return 済みなので、
+    //  ここに来るのは「機関を選んだのに増えなかった」異常系だけ）。
+    let after = before;
+    let countOk = true;
+    try {
+      after = await countLabsForConfigUni(target.university);
+    } catch (e) {
+      countOk = false;
+      console.error("post-ingest lab count failed (skipping progress check):", e);
+    } finally {
+      await prisma.$disconnect();
+    }
+    const delta = after - before;
+    if (countOk) {
+      console.log(
+        `Progress for ${target.university.key}: labs ${before} → ${after} ` +
+          `(Δ${delta >= 0 ? "+" : ""}${delta})`,
+      );
+    }
+
+    if (code && code !== 0) {
+      process.exit(code);
+    }
+    // 進捗判定は lab 数の再計測に成功したときだけ行う。計測が転けたら
+    // （DB 一時障害など）子プロセスの成否をそのまま尊重し、誤検知の赤を避ける。
+    if (countOk && delta <= 0) {
+      console.error(
+        `\n⚠ NO PROGRESS: ${target.university.key} added 0 labs for the current ` +
+          `field set. It has no ingestable data here — set skipAutoIngest:true in ` +
+          `config/universities.json (or add fields), else every cron re-picks it. ` +
+          `Exiting non-zero so this is visible in Actions.`,
+      );
+      process.exit(2);
+    }
+    process.exit(0);
   });
 }
 
