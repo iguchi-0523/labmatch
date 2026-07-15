@@ -1,11 +1,12 @@
 # ラボマッチ 取り込み進捗レポート
 
-_最終更新: 2026-07-14 10:46:20 JST_
+_最終更新: 2026-07-15 10:42:49 JST_
 
 ```
-  ✓ 関西医科大学                 368 labs
   ✓ 浜松医科大学                 348 labs
   ✓ 横浜市立大学                 338 labs
+  ✓ 東海大学                   336 labs
+  ✓ 信州大学                   330 labs
   ✓ 早稲田大学                  300 labs
   ✓ 日本医科大学                 288 labs
   ✓ 滋賀医科大学                 288 labs
@@ -14,7 +15,6 @@ _最終更新: 2026-07-14 10:46:20 JST_
   ✓ 東京理科大学                 247 labs
   ✓ 旭川医科大学                 236 labs
   ✓ 大阪公立大学                 231 labs
-  ✓ 東京工業大学                 222 labs
   ✓ 立命館大学                  209 labs
   ✓ 沖縄科学技術大学院大学            182 labs
   ✓ 奈良先端科学技術大学院大学          151 labs
@@ -30,6 +30,7 @@ _最終更新: 2026-07-14 10:46:20 JST_
   ✓ 国立遺伝学研究所               85 labs
   ✓ 横浜国立大学                 83 labs
   ✓ 中央大学                   80 labs
+  ✓ 理化学研究所                 80 labs
   ✓ 北陸先端科学技術大学院大学          76 labs
   ✓ 関西学院大学                 73 labs
   ✓ 法政大学                   70 labs
@@ -38,29 +39,28 @@ _最終更新: 2026-07-14 10:46:20 JST_
   ✓ 青山学院大学                 57 labs
   ✓ 上智大学                   53 labs
 
-■ 部分取り込み (1〜49 labs): 3 機関
+■ 部分取り込み (1〜49 labs): 2 機関
   · 理研 統合生命医科学研究センター       35 labs
-  · 理化学研究所                 20 labs
   · カブリ数物連携宇宙研究機構（Kavli IPMU） 7 labs
 
-■ 子センター (parent 付き、研究機関): 77 件
+■ 子センター (parent 付き、研究機関): 84 件
   · University of Tokyo Hospital                            296 labs
   · Keio University Hospital                                227 labs
   · Kyoto University Hospital                               221 labs
   · Okayama University Hospital                             196 labs
   · Yokohama City University Medical Center                 185 labs
-  · Kyushu University Hospital                              174 labs
+  · Kyushu University Hospital                              178 labs
+  · RIKEN Center for Integrative Medical Sciences           150 labs
+  · RIKEN Center for Sustainable Resource Science           148 labs
   · Niigata University Medical and Dental Hospital          141 labs
-  · RIKEN Center for Integrative Medical Sciences           141 labs
   · Jichi Medical University Hospital                       133 labs
-  · Juntendo University Hospital                            133 labs
 
 ■ 全体統計
-  ラボ総数:     31,321
-  論文総数:     981,576
-  AI 要約済み:  29,306 (94%)
-  タグ付き:     30,125 (96%)
+  ラボ総数:     36,021
+  論文総数:     1,111,947
+  AI 要約済み:  35,491 (99%)
+  タグ付き:     35,662 (99%)
 
-■ config に登録されている総数: 72 機関（大学 + 公的研究機関 + 学内研究所）
-  残: 約 15 機関 (4 本/日 cron で約 4 日で完走)
+■ config に登録されている総数: 111 機関（大学 + 公的研究機関 + 学内研究所）
+  残: 約 49 機関 (4 本/日 cron で約 13 日で完走)
 ```
