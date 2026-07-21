@@ -1,10 +1,8 @@
 # ラボマッチ 取り込み進捗レポート
 
-_最終更新: 2026-07-20 11:12:16 JST_
+_最終更新: 2026-07-21 10:54:33 JST_
 
 ```
-  ✓ 日本医科大学                 288 labs
-  ✓ 滋賀医科大学                 288 labs
   ✓ 東京農工大学                 285 labs
   ✓ 国立感染症研究所               283 labs
   ✓ 福岡大学                   283 labs
@@ -24,6 +22,7 @@ _最終更新: 2026-07-20 11:12:16 JST_
   ✓ Tokyo Metropolitan Institute of Medical Science 94 labs
   ✓ 京都工芸繊維大学               92 labs
   ✓ 九州工業大学                 90 labs
+  ✓ 岡山理科大学                 90 labs
   ✓ 関西大学                   90 labs
   ✓ 名古屋工業大学                87 labs
   ✓ 国立遺伝学研究所               85 labs
@@ -32,6 +31,7 @@ _最終更新: 2026-07-20 11:12:16 JST_
   ✓ 理化学研究所                 80 labs
   ✓ 電気通信大学                 78 labs
   ✓ 北陸先端科学技術大学院大学          76 labs
+  ✓ 豊橋技術科学大学               74 labs
   ✓ 関西学院大学                 73 labs
   ✓ 法政大学                   70 labs
   ✓ 東京都医学総合研究所             68 labs
@@ -43,24 +43,24 @@ _最終更新: 2026-07-20 11:12:16 JST_
   · 理研 統合生命医科学研究センター       35 labs
   · カブリ数物連携宇宙研究機構（Kavli IPMU） 7 labs
 
-■ 子センター (parent 付き、研究機関): 97 件
+■ 子センター (parent 付き、研究機関): 100 件
   · University of Tokyo Hospital                            296 labs
   · Keio University Hospital                                233 labs
   · Kyoto University Hospital                               221 labs
   · Okayama University Hospital                             200 labs
   · Yokohama City University Medical Center                 185 labs
   · Kyushu University Hospital                              178 labs
+  · Fujita Health University Hospital                       175 labs
   · RIKEN Center for Integrative Medical Sciences           150 labs
   · RIKEN Center for Sustainable Resource Science           148 labs
   · Niigata University Medical and Dental Hospital          146 labs
-  · Jichi Medical University Hospital                       133 labs
 
 ■ 全体統計
-  ラボ総数:     46,786
-  論文総数:     1,372,632
-  AI 要約済み:  46,499 (99%)
-  タグ付き:     46,437 (99%)
+  ラボ総数:     47,813
+  論文総数:     1,399,949
+  AI 要約済み:  47,517 (99%)
+  タグ付き:     47,458 (99%)
 
 ■ config に登録されている総数: 111 機関（大学 + 公的研究機関 + 学内研究所）
-  残: 約 30 機関 (4 本/日 cron で約 8 日で完走)
+  残: 約 26 機関 (4 本/日 cron で約 7 日で完走)
 ```
