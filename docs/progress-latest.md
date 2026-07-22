@@ -1,11 +1,8 @@
 # ラボマッチ 取り込み進捗レポート
 
-_最終更新: 2026-07-21 10:54:33 JST_
+_最終更新: 2026-07-22 10:53:33 JST_
 
 ```
-  ✓ 東京農工大学                 285 labs
-  ✓ 国立感染症研究所               283 labs
-  ✓ 福岡大学                   283 labs
   ✓ 旭川医科大学                 236 labs
   ✓ 大阪公立大学                 231 labs
   ✓ 立命館大学                  209 labs
@@ -18,6 +15,7 @@ _最終更新: 2026-07-21 10:54:33 JST_
   ✓ 同志社大学                  134 labs
   ✓ 明治大学                   113 labs
   ✓ 医薬基盤・健康・栄養研究所          108 labs
+  ✓ 兵庫県立大学                 104 labs
   ✓ 埼玉大学                   104 labs
   ✓ Tokyo Metropolitan Institute of Medical Science 94 labs
   ✓ 京都工芸繊維大学               92 labs
@@ -34,16 +32,18 @@ _最終更新: 2026-07-21 10:54:33 JST_
   ✓ 豊橋技術科学大学               74 labs
   ✓ 関西学院大学                 73 labs
   ✓ 法政大学                   70 labs
+  ✓ 長岡技術科学大学               70 labs
   ✓ 東京都医学総合研究所             68 labs
   ✓ 立教大学                   63 labs
   ✓ 青山学院大学                 57 labs
   ✓ 上智大学                   53 labs
+  ✓ 東京電機大学                 50 labs
 
 ■ 部分取り込み (1〜49 labs): 2 機関
   · 理研 統合生命医科学研究センター       35 labs
   · カブリ数物連携宇宙研究機構（Kavli IPMU） 7 labs
 
-■ 子センター (parent 付き、研究機関): 100 件
+■ 子センター (parent 付き、研究機関): 101 件
   · University of Tokyo Hospital                            296 labs
   · Keio University Hospital                                233 labs
   · Kyoto University Hospital                               221 labs
@@ -56,11 +56,11 @@ _最終更新: 2026-07-21 10:54:33 JST_
   · Niigata University Medical and Dental Hospital          146 labs
 
 ■ 全体統計
-  ラボ総数:     47,813
-  論文総数:     1,399,949
-  AI 要約済み:  47,517 (99%)
-  タグ付き:     47,458 (99%)
+  ラボ総数:     48,438
+  論文総数:     1,416,072
+  AI 要約済み:  48,159 (99%)
+  タグ付き:     48,087 (99%)
 
 ■ config に登録されている総数: 111 機関（大学 + 公的研究機関 + 学内研究所）
-  残: 約 26 機関 (4 本/日 cron で約 7 日で完走)
+  残: 約 22 機関 (4 本/日 cron で約 6 日で完走)
 ```
