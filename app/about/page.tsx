@@ -50,7 +50,7 @@ export default async function AboutPage() {
         </h2>
         <p className="text-gray-700 dark:text-gray-300 leading-relaxed mb-3">
           現在 約 {labApprox.toLocaleString()} 研究室・{workMan} 万件の論文を収録しています（
-          {stats.completedCount} 機関の取り込みが完了）。GitHub Actions
+          {stats.completedCount} 機関を取り込み済み）。GitHub Actions
           の自動取り込みが数時間おきに動いており、主要大学から順に対象を広げています。
           最終的には全国の主要大学と公的研究機関のカバーを目指します。
         </p>

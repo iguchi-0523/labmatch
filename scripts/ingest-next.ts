@@ -5,6 +5,7 @@ import {
   getAllUniversities,
   type University,
 } from "../lib/universities";
+import { DONE_MIN_LABS } from "../lib/ingest-thresholds";
 import { spawn } from "node:child_process";
 
 /**
@@ -14,10 +15,10 @@ import { spawn } from "node:child_process";
  * 既存の ingest-utokyo-life.ts を `--university=KEY` で呼び出す。
  *
  * 選定ロジック：
- *   1. config に存在する大学のうち、worksCount が大きい順
- *      （メモリ確定の優先順位＝研究力順）
- *   2. ただし「すでに十分に ingest されている」もの（DB の labs 数が
- *      MIN_LAB_COUNT_TO_CONSIDER_DONE 以上）はスキップ
+ *   1. 大学（国立・公立・私学）を先に、公的研究機関を後に。区分内は
+ *      worksCount が大きい順（＝研究力順）
+ *   2. ただし「すでに ingest されている」もの（DB の labs 数が
+ *      DONE_MIN_LABS 以上）はスキップ
  *
  * このスクリプトは「1 校だけ」を ingest して終了する。
  * GitHub Actions などで cron 実行することを想定。
@@ -26,8 +27,6 @@ import { spawn } from "node:child_process";
  *   - INGEST_NEXT_DRY_RUN=1 で対象選定のみ表示して終了
  *   - INGEST_NEXT_FORCE_KEY=u-tokyo で特定大学を強制指定
  */
-
-const MIN_LAB_COUNT_TO_CONSIDER_DONE = 50;
 
 interface CandidateInfo {
   university: University;
@@ -40,7 +39,7 @@ interface CandidateInfo {
  *（parentId が当該レコードを指す University）の lab も合算する。
  *
  * 理由 1：RIKEN のように PI が全員子センター（RIKEN Center for ...）に
- * 振り分けられる機関では、親レコード自体の lab 数が 50 に届かず、
+ * 振り分けられる機関では、親レコード自体の lab 数が当時のしきい値 50 に届かず、
  * ingest-next が毎回その機関を選び直して無限ループしていた（2026-06-18 発覚）。
  *
  * 理由 2：ingest が nameEn 側のレコード（例 "RIKEN Center for Integrative
@@ -76,8 +75,17 @@ async function pickNextUniversity(): Promise<CandidateInfo | null> {
   // 旧 filter のままだと 4 本 cron で自動取り込みされない問題があった。
   const all = getAllUniversities();
 
-  // worksCount 降順（worksCount 不明は最後）でソート
+  // ソート順：大学（国立・公立・私学）を先に、研究機関を後に。
+  // 同じ区分の中は worksCount 降順（worksCount 不明は最後）。
+  //
+  // 2026-07-23 のユーザー指示。サイトの利用者は大学院進学・研究室配属を考える学生で、
+  // 探す対象はまず大学の研究室。産総研・NIMS・JAXA のような公的研究機関は
+  // 需要が後に来るので、大学を全部埋めてから回す。
+  // 取り込み済みの研究機関（理研 IMS・Kavli IPMU 等）はそのまま完了扱いで残す。
+  const rank = (u: University) => (u.category === "research-institute" ? 1 : 0);
   const sorted = [...all].sort((a, b) => {
+    const byCategory = rank(a) - rank(b);
+    if (byCategory !== 0) return byCategory;
     const aw = (a as unknown as { worksCount?: number }).worksCount ?? 0;
     const bw = (b as unknown as { worksCount?: number }).worksCount ?? 0;
     return bw - aw;
@@ -95,23 +103,27 @@ async function pickNextUniversity(): Promise<CandidateInfo | null> {
   // 出し尽くし」とみなして自動選択から外し、未着手機関を研究力順に流す。
   // 出し尽くしの部分機関を後から伸ばしたいときは、config に分野を足したうえで
   // INGEST_NEXT_FORCE_KEY=<key> か `--fields=stem` で手動追い取り込みする。
+  //
+  // 2026-07-23 に DONE_MIN_LABS を 1 に下げたので、この「取り込んだが閾値未満」の
+  // 区間は現在は空（lab≥1 は完了扱い）。しきい値を将来また上げたときのために
+  // 分岐は残してある。
   const startedButUnfinished: { key: string; labs: number }[] = [];
   for (const uni of sorted) {
     // 別レコードで取り込み済みの重複機関などは明示的に除外する
     if (uni.skipAutoIngest) continue;
     const labCount = await countLabsForConfigUni(uni);
-    if (labCount >= MIN_LAB_COUNT_TO_CONSIDER_DONE) continue; // 取り込み済み
+    if (labCount >= DONE_MIN_LABS) continue; // 取り込み済み
     if (labCount === 0) {
       // 未着手＝本来の自動取り込み対象。研究力の高い順で 1 校返す。
       return { university: uni, currentLabCount: 0 };
     }
-    // 0 < labCount < 50：着手済みだが閾値未満。ここでは選ばない。
+    // 0 < labCount < DONE_MIN_LABS：着手済みだが閾値未満。ここでは選ばない。
     startedButUnfinished.push({ key: uni.key, labs: labCount });
   }
 
   if (startedButUnfinished.length > 0) {
     console.log(
-      "No un-started institution left. Skipped partially-ingested (1-49 labs) " +
+      `No un-started institution left. Skipped partially-ingested (1-${DONE_MIN_LABS - 1} labs) ` +
         "institutions to avoid re-picking exhausted ones:",
     );
     for (const s of startedButUnfinished) {
@@ -164,7 +176,7 @@ async function main() {
   // 2026-07 に「全分野=18」へ変わったが、nightly cron（GitHub Actions）は
   // timeout-minutes:350 が生命＋医療の 7 分野を前提に組まれている。既定を暗黙
   // 継承すると 1 回の cron が 18 分野（2〜3倍の負荷）になり、タイムアウトで
-  // 部分取り込みのまま labs>=50 を満たして「完了扱い」に固定される恐れがある。
+  // 部分取り込みのまま「完了扱い」に固定される恐れがある。
   // よって cron は既定 life（従来挙動）に固定。理工系の追い取り込みは別途
   // --fields=stem を明示実行する。スコープを変えたい場合は INGEST_NEXT_FIELDS で。
   const fields = process.env.INGEST_NEXT_FIELDS || "life";

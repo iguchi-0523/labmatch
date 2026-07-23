@@ -9,7 +9,8 @@ name: Recurring Ingest (every 6h)
 #   - 12:00 UTC = 21:00 JST
 #   - 18:00 UTC = 03:00 JST
 #
-# 完走後（config の全大学・研究機関が DB labs >= 50 を満たす）は
+# 完走後（config の全大学・研究機関が DB labs >= DONE_MIN_LABS を満たす。
+# lib/ingest-thresholds.ts 参照、2026-07-23 に 50 → 1）は
 # `ingest-next.ts` が "All configured universities are already ingested." で
 # 早期終了するので、cron を放置しても無駄リソースは数十秒程度のみ。
 # 完走後に頻度を下げたいときは cron を `0 15 * * *` に戻すこと（00:00 JST 1 本）。

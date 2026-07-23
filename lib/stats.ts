@@ -1,8 +1,10 @@
 import { unstable_cache } from "next/cache";
 import { prisma } from "./db";
 
+import { DONE_MIN_LABS } from "./ingest-thresholds";
+
 /** 取り込み「完了」とみなす最小ラボ数（子センター合算）。progress-report と揃える。 */
-const DONE_THRESHOLD = 50;
+const DONE_THRESHOLD = DONE_MIN_LABS;
 
 export interface SiteStats {
   /** 論理削除を除くラボ総数 */
@@ -11,7 +13,7 @@ export interface SiteStats {
   workCount: number;
   /** AI 要約済みラボ数 */
   summarizedCount: number;
-  /** 取り込み完了した親大学・独立機関の数（子センター合算で >= 50） */
+  /** 取り込み完了した親大学・独立機関の数（子センター合算で >= DONE_MIN_LABS） */
   completedCount: number;
   /** 完了した機関名（ラボ数の多い順、表示用に上位のみ使う想定） */
   completedNames: string[];
