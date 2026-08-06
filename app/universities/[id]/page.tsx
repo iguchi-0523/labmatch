@@ -9,10 +9,10 @@ import { SITE_NAME, SITE_URL } from "@/lib/site";
  * 大学ハブ（中尾クエリ「○○大学 研究室」等の受け皿 + ラボ詳細への内部リンク源）。
  * 配下の研究室を分野別にまとめ、各ラボ詳細と絞り込み検索の両方へ導線を張る。
  *
- * locale cookie は読まない（日本語固定）。ルートレイアウトが cookie 依存を
- * やめれば ISR キャッシュ対象になる。
+ * locale cookie は読まない（日本語固定）ので ISR キャッシュ対象。実効期限は
+ * lib/stats.ts の getSeoCounts の revalidate との最小値になる点に注意。
  */
-export const revalidate = 86400;
+export const revalidate = 604800;
 
 // 動的 param を ISR キャッシュ対象にする（空配列＝初回アクセスで描画→キャッシュ）。
 export async function generateStaticParams() {

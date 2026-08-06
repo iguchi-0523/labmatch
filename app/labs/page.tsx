@@ -11,12 +11,20 @@ import { TagChip } from "@/components/TagChip";
 import { UniversityTreeFilter } from "@/components/UniversityTreeFilter";
 import { compareUniversities } from "@/lib/university-rank";
 import { localizeFieldLabel, localizeTag } from "@/lib/labels-en";
-import { getI18n } from "@/lib/i18n-server";
-import { interpolate } from "@/lib/i18n";
+import { getDict, interpolate, type Locale } from "@/lib/i18n";
 import { buildFavoriteProfile, scoreLabByProfile } from "@/lib/recommendations";
 import { getSeoCounts } from "@/lib/stats";
 
-export const dynamic = "force-dynamic";
+// searchParams を読むので描画自体は都度走る。ただし cookie は読まないので
+// レスポンスは URL だけで決まり、CDN に載せられる。実際のキャッシュ指示は
+// next.config.ts の headers() で付ける（force-dynamic のままだと Next.js が
+// `private, no-store` を付けて CDN を素通りし、1 リクエストごとに
+// origin 描画 + 転送が発生する。1 枚 gzip 約 67 KB と重いページなので、
+// ここが Fast Origin Transfer を最も食っていた）。
+//
+// locale を cookie から取るのをやめ、サーバは日本語固定で描画する。
+// 表示言語の切り替えは LocaleProvider がクライアントで行う
+// （app/labs/[id]/page.tsx と同じ方式）。
 
 export async function generateMetadata() {
   // 収録数は取り込みで増えるので 6 時間キャッシュした実数（丸め）から出す。
@@ -136,7 +144,10 @@ function buildTagCondition(tag: string): Prisma.LabWhereInput {
 
 export default async function LabsPage({ searchParams }: PageProps) {
   const params = await searchParams;
-  const { locale, t } = await getI18n();
+  // cookie を読まない（読むと CDN キャッシュ不可になる）。日本語固定で描画し、
+  // 英語表示は LocaleProvider がクライアントで差し替える。
+  const locale: Locale = "ja";
+  const t = getDict(locale);
   // フリーテキスト検索（研究室名・主宰者・AI 要約・論文タイトル）。`q` に集約。
   const queryTerms = Array.from(
     new Set(
@@ -273,12 +284,25 @@ export default async function LabsPage({ searchParams }: PageProps) {
           ? { viewCount: "desc" }
           : { works: { _count: "desc" } };
 
-  /** 一覧 UI が必要とする lab フィールド一式（親 University も込み） */
-  const labInclude = {
-    university: { include: { parent: true } },
+  /** 一覧 UI が実際に描画する項目だけ（親 University も込み）。
+   *
+   *  以前は `include` で Lab の全列を引いていた。カードが出さない aiSummary が
+   *  1 ページ 50 件で約 25,000 文字あり、DB から引いて捨てるだけの往復に
+   *  なっていた（sort=recommend では最大 2,000 件ぶん）。
+   *  University も同様に全列ではなく表示に使う name だけに絞る。 */
+  const labSelect = {
+    id: true,
+    professorName: true,
+    department: true,
+    primaryFieldCode: true,
+    primaryFieldName: true,
+    tags: true,
+    university: {
+      select: { name: true, parent: { select: { name: true } } },
+    },
     _count: { select: { works: true } },
-  } satisfies Prisma.LabInclude;
-  type LabRow = Prisma.LabGetPayload<{ include: typeof labInclude }>;
+  } satisfies Prisma.LabSelect;
+  type LabRow = Prisma.LabGetPayload<{ select: typeof labSelect }>;
 
   const skip = (currentPage - 1) * PER_PAGE;
   /** sort=recommend かつお気に入りがあるとき、ページネーション前に
@@ -311,7 +335,7 @@ export default async function LabsPage({ searchParams }: PageProps) {
   if (recommendActive && profile) {
     const candidates = await prisma.lab.findMany({
       where,
-      include: labInclude,
+      select: labSelect,
       // works の多いものから取りつつ cap。スコアが付くラボは tag/field 同一性で決まるので、
       // works 多いものから見ていけば「実質的に上位」の取りこぼしは少ない。
       orderBy: { works: { _count: "desc" } },
@@ -338,7 +362,7 @@ export default async function LabsPage({ searchParams }: PageProps) {
   } else {
     pageMatches = await prisma.lab.findMany({
       where,
-      include: labInclude,
+      select: labSelect,
       orderBy,
       take: PER_PAGE,
       skip,

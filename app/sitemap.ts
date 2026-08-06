@@ -10,12 +10,15 @@ import { SITE_URL } from "@/lib/site";
  * works が薄いものを除外し、詳細ページの noindex 方針（works < 3 を noindex）と
  * 揃える。
  *
- * Google の単一サイトマップ上限は 50,000 URL。現在 ≈ 1.8 万 + 大学ハブで余裕が
- * あるが、indexable lab が ~45,000 を超えたら generateSitemaps で分割する。
+ * Google の単一サイトマップ上限は 50,000 URL。2026-08-06 時点で 49,666 URL
+ * （indexable lab 49,381 + 大学ハブ 216 + 分野 + 地域 + 静的 8）。上限まで
+ * 残り 334 で、取り込みを再開したら generateSitemaps での分割が要る。
  *
- * 6 時間ごとに再生成（ingest cron と同周期）。
+ * 再生成は 1 日 1 回。5 万件の lab を works の件数付きで全件走査する重い
+ * クエリで、6 時間ごとに回す必要はない（取り込みは停止中で、再開しても
+ * 日次で十分追いつく）。
  */
-export const revalidate = 21600;
+export const revalidate = 86400;
 
 /** これ未満の works のラボ詳細は noindex 方針に合わせ sitemap からも除外。
  *  app/labs/[id]/page.tsx の generateMetadata と一致させること。 */

@@ -9,7 +9,7 @@ import { SITE_NAME, SITE_URL } from "@/lib/site";
  * 都道府県ハブ。県内の大学・研究機関を一覧し、各大学ハブへ送る地域ランディング。
  * 「東京 研究室」「大阪 大学院 研究室」等の地域クエリを受ける。
  */
-export const revalidate = 86400;
+export const revalidate = 604800;
 
 // 都道府県は有限の固定集合なので全件ビルド時に事前生成する。
 // 空配列だと非 ASCII param（「東京都」等）の on-demand 生成が Vercel で 500 に

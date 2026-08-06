@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { CONTACT_EMAIL, OPERATOR_NAME, SITE_NAME } from "@/lib/site";
-import { getI18n } from "@/lib/i18n-server";
+import { getDict, type Locale } from "@/lib/i18n";
 import { JaOnlyNotice } from "@/components/JaOnlyNotice";
 
 export const metadata = {
@@ -10,7 +10,9 @@ export const metadata = {
 };
 
 export default async function PrivacyPage() {
-  const { locale, t } = await getI18n();
+  // cookie を読むと CDN キャッシュ不可になるため日本語固定。切替は LocaleProvider。
+  const locale: Locale = "ja";
+  const t = getDict(locale);
   return (
     <main className="max-w-3xl mx-auto px-6 py-12 text-gray-800 dark:text-gray-200">
       <nav className="mb-6 text-sm">
@@ -21,7 +23,7 @@ export default async function PrivacyPage() {
           {t.toTop}
         </Link>
       </nav>
-      <JaOnlyNotice locale={locale} />
+      <JaOnlyNotice />
       <h1 className="text-3xl font-bold mb-2 text-gray-900 dark:text-gray-100">
         プライバシーポリシー
       </h1>

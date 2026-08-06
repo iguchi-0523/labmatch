@@ -13,7 +13,14 @@ import { SITE_NAME, SITE_URL } from "@/lib/site";
 
 // ラボ詳細は ISR キャッシュ（CDN 配信 + クロール効率）。force-dynamic をやめ、
 // cookie 依存（getI18n）も外した。閲覧数は ViewBeacon → API で加算する。
-export const revalidate = 86400;
+//
+// revalidate は 30 日。1 日（86400）だと 4.9 万ページのキャッシュが毎日切れ、
+// クローラの巡回が毎回 origin 再描画に落ちる。1 ページ約 16 KB（gzip）×
+// 4.9 万 × 毎日 ≒ 24 GB/月 となり、Hobby の Fast Origin Transfer 10 GB を
+// 単独で使い切る（2026-08-05 にこれでチームが Paused になった）。
+// ラボの内容は ingest でしか変わらず、ingest 完了後は静的に近い。
+// 取り込みを再開して即時反映が要るときは deploy すればキャッシュは飛ぶ。
+export const revalidate = 2592000;
 
 // 動的 param ルートを ISR の対象にする（Next.js は generateStaticParams が無いと
 // 動的 param を no-store で都度描画する）。空配列＝ビルド時は事前生成せず、初回

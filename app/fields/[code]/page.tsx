@@ -9,7 +9,7 @@ import { SITE_NAME, SITE_URL } from "@/lib/site";
  * 分野ハブ（「○○ 研究室」「○○ 大学院」等の受け皿）。配下の研究室を大学別に
  * まとめ、各ラボ詳細・大学ハブ・絞り込み検索へ導線を張る。
  */
-export const revalidate = 86400;
+export const revalidate = 604800;
 
 // 動的 param を ISR キャッシュ対象にする（空配列＝初回アクセスで描画→キャッシュ）。
 export async function generateStaticParams() {

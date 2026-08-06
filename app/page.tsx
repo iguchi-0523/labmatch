@@ -2,18 +2,22 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { FavoritesRecommendations } from "@/components/FavoritesRecommendations";
 import { JsonLd } from "@/components/JsonLd";
-import { getI18n } from "@/lib/i18n-server";
+import { getDict, type Locale } from "@/lib/i18n";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
 
-export const dynamic = "force-dynamic";
+// トップは 1 時間の ISR。表示するのは収録数の概算だけで、分単位の鮮度は要らない。
+// cookie（locale）を読むのをやめたのでキャッシュ対象になる。表示言語の切り替えは
+// LocaleProvider がクライアントで行う。
+export const revalidate = 3600;
 
 export default async function Home() {
-  const [labCount, workCount, uniCount, { locale, t }] = await Promise.all([
+  const [labCount, workCount, uniCount] = await Promise.all([
     prisma.lab.count({ where: { deletedAt: null } }),
     prisma.work.count(),
     prisma.university.count(),
-    getI18n(),
   ]);
+  const locale: Locale = "ja";
+  const t = getDict(locale);
 
   // サイト全体の構造化データ。SearchAction で Google のサイトリンク検索ボックス、
   // Organization でブランド情報を提示する。

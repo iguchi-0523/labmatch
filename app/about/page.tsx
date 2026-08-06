@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getSiteStats } from "@/lib/stats";
-import { getI18n } from "@/lib/i18n-server";
+import { getDict, type Locale } from "@/lib/i18n";
 import { JaOnlyNotice } from "@/components/JaOnlyNotice";
 
 export const metadata = {
@@ -16,7 +16,9 @@ export const revalidate = 21600;
 
 export default async function AboutPage() {
   const stats = await getSiteStats();
-  const { locale, t } = await getI18n();
+  // cookie を読むと CDN キャッシュ不可になるため日本語固定。切替は LocaleProvider。
+  const locale: Locale = "ja";
+  const t = getDict(locale);
   const labApprox = Math.floor(stats.labCount / 100) * 100; // 「約 N 件」用に下 2 桁を丸める
   const workMan = (stats.workCount / 10000).toFixed(1); // 万件
   return (
@@ -29,7 +31,7 @@ export default async function AboutPage() {
           {t.toTop}
         </Link>
       </nav>
-      <JaOnlyNotice locale={locale} />
+      <JaOnlyNotice />
       <h1 className="text-3xl font-bold mb-8 text-gray-900 dark:text-gray-100">
         ラボマッチについて
       </h1>
@@ -50,9 +52,10 @@ export default async function AboutPage() {
         </h2>
         <p className="text-gray-700 dark:text-gray-300 leading-relaxed mb-3">
           現在 約 {labApprox.toLocaleString()} 研究室・{workMan} 万件の論文を収録しています（
-          {stats.completedCount} 機関を取り込み済み）。GitHub Actions
-          の自動取り込みが数時間おきに動いており、主要大学から順に対象を広げています。
-          最終的には全国の主要大学と公的研究機関のカバーを目指します。
+          {stats.completedCount} 機関を取り込み済み）。当初予定していた機関の
+          取り込みは一巡し、現在は定期取り込みを止めています。
+          最終的には全国の主要大学と公的研究機関のカバーを目指しており、
+          対象機関を広げる際に取り込みを再開します。
         </p>
         <ul className="list-disc pl-5 space-y-2 text-gray-700 dark:text-gray-300">
           <li>
@@ -200,8 +203,8 @@ export default async function AboutPage() {
               Q. データの更新頻度はどれくらいですか？
             </h3>
             <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-              GitHub Actions の自動処理が数時間おきに動き、新しい大学・研究機関を順に取り込んでいます。
-              既存ラボの論文・タグ・AI 要約も随時更新します。主要大学のカバーが一段落したら頻度を下げる予定です。
+              予定していた機関のカバーが一段落したため、現在は定期更新を止めています。
+              対象機関を広げるときや、論文・タグ・AI 要約をまとめて更新するときに再開します。
             </p>
           </div>
           <div>

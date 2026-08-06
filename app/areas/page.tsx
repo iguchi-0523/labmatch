@@ -8,7 +8,7 @@ import { SITE_NAME, SITE_URL } from "@/lib/site";
  * 地域ハブの一覧（地方 → 都道府県）。各都道府県ハブ（/areas/[pref]）への内部リンク。
  * 「東京 研究室」「大阪 大学 研究室」のような地域クエリの入口になる。
  */
-export const revalidate = 86400;
+export const revalidate = 604800;
 
 export const metadata = {
   title: "地域から研究室を探す",

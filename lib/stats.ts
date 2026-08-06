@@ -73,9 +73,19 @@ export async function getSiteStats(): Promise<SiteStats> {
  * SEO コピー（トップの description / OGP / Twitter カード）用に、ラボ数・論文数を
  * 丸めた表示文字列で返す。
  *
- * unstable_cache で 6 時間キャッシュするので、取り込みの進行に合わせて自動更新
- * されつつ、レイアウトを静的（ISR）に保てる（リクエストごとの DB アクセスを避ける）。
+ * unstable_cache でキャッシュするので、レイアウトを静的（ISR）に保てる
+ * （リクエストごとの DB アクセスを避ける）。
  * 丸めは「実数を上回らない」floor 方向にして誇張を避ける。
+ *
+ * revalidate は 30 日。ここはルートレイアウトの generateMetadata から呼ばれる
+ * ため、この値が全ページの ISR 期限の上限になる（Next.js は描画中に使った
+ * キャッシュの revalidate と各ページの revalidate の最小値を採る）。
+ * 6 時間にしていたときは app/labs/[id] が revalidate=86400 を指定しても
+ * 実効 6 時間まで切り下げられ、4.9 万枚のラボ詳細が 1 日に最大 4 回
+ * 再生成されうる状態だった。これが Fast Origin Transfer 超過の主因。
+ *
+ * 返すのは「約 5.0 万研究室」のような丸めた表示文字列で、千件単位で
+ * しか動かない。取り込みで数字が進んだら deploy でキャッシュは飛ぶ。
  */
 export const getSeoCounts = unstable_cache(
   async () => {
@@ -91,5 +101,5 @@ export const getSeoCounts = unstable_cache(
     };
   },
   ["seo-counts"],
-  { revalidate: 21600 },
+  { revalidate: 2592000 },
 );

@@ -9,10 +9,10 @@ import { SITE_NAME, SITE_URL } from "@/lib/site";
  * 大学ハブが「大学 → 分野」なら、こちらは「分野 → 大学」の逆軸で同じラボ群を
  * 別経路から張り、クロールの網を二重化する。
  *
- * locale cookie は読まない（日本語固定）。レイアウトの cookie 依存が外れれば
- * ISR キャッシュ対象になる。
+ * locale cookie は読まない（日本語固定）ので ISR キャッシュ対象。実効期限は
+ * lib/stats.ts の getSeoCounts の revalidate との最小値になる点に注意。
  */
-export const revalidate = 86400;
+export const revalidate = 604800;
 
 export const metadata = {
   title: "研究分野から研究室を探す",

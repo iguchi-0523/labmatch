@@ -54,7 +54,7 @@ export default async function ReportPage({ params }: PageProps) {
           {displayName} 研究室
         </Link>
       </nav>
-      <JaOnlyNotice locale={locale} />
+      <JaOnlyNotice />
 
       <header className="mb-6 pb-4 border-b">
         <h1 className="text-2xl font-bold mb-2">掲載に関するご依頼</h1>

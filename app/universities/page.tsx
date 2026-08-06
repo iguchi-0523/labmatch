@@ -8,10 +8,11 @@ import { compareUniversities } from "@/lib/university-rank";
  * 大学ハブの一覧ページ。各大学ハブ（/universities/[id]）への内部リンクを束ね、
  * クローラがラボ詳細へ到達する経路の起点になる。
  *
- * このページは locale cookie を読まない（日本語固定）。ルートレイアウトが
- * cookie 依存をやめた時点で ISR キャッシュ対象になるよう revalidate を置く。
+ * このページは locale cookie を読まない（日本語固定）ので ISR キャッシュ対象。
+ * 実効期限は lib/stats.ts の getSeoCounts（ルートレイアウトが呼ぶ）の
+ * revalidate との最小値になる点に注意。
  */
-export const revalidate = 86400;
+export const revalidate = 604800;
 
 const CATEGORY_LABEL: Record<string, string> = {
   national: "国立大学",
